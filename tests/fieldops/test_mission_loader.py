@@ -118,6 +118,86 @@ def test_signature_sidecar_with_prefix(tmp_path: Path, monkeypatch: pytest.Monke
     assert summary["checksum"] == checksum
 
 
+def test_valid_package_persisted_to_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    staging_root = tmp_path / "staging"
+    cache_root = tmp_path / "cache"
+    monkeypatch.setenv("PRRC_FIELDOPS_STAGING_DIR", str(staging_root))
+    monkeypatch.setenv("PRRC_FIELDOPS_CACHE_DIR", str(cache_root))
+
+    archive = tmp_path / "mission.zip"
+    manifest = {
+        "mission_id": "fs-4481",
+        "name": "Flooded Substation Rescue",
+        "version": "2024.04",
+        "created_at": "2024-04-12T13:15:00Z",
+    }
+
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "briefing.txt").write_text("critical intel", encoding="utf-8")
+
+    with zipfile.ZipFile(archive, "w") as handle:
+        handle.writestr("manifest.json", json.dumps(manifest))
+        handle.write(docs_dir / "briefing.txt", arcname="docs/briefing.txt")
+
+    checksum = _write_sidecar(archive)
+
+    summary = load_mission_package(archive)
+
+    cache_dir = Path(summary["cache_directory"])
+    assert cache_dir.exists()
+    assert cache_dir.parent == cache_root
+    # Directory naming should incorporate the mission identifier.
+    assert cache_dir.name.startswith("fs-4481")
+    assert summary["cached_files"] == sorted(["docs/briefing.txt", "manifest.json"])
+    assert summary["cached_file_count"] == 2
+    assert (cache_dir / "docs" / "briefing.txt").read_text(encoding="utf-8") == "critical intel"
+    assert summary["checksum"] == checksum
+
+
+def test_tampered_package_not_cached(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    staging_root = tmp_path / "staging"
+    cache_root = tmp_path / "cache"
+    monkeypatch.setenv("PRRC_FIELDOPS_STAGING_DIR", str(staging_root))
+    monkeypatch.setenv("PRRC_FIELDOPS_CACHE_DIR", str(cache_root))
+
+    archive = tmp_path / "tampered.zip"
+    sample_file = tmp_path / "doc.txt"
+    sample_file.write_text("payload", encoding="utf-8")
+
+    with zipfile.ZipFile(archive, "w") as handle:
+        handle.write(sample_file, arcname="doc.txt")
+
+    sidecar = archive.with_name(archive.name + ".sha256")
+    sidecar.write_text("deadbeef", encoding="utf-8")
+
+    with pytest.raises(MissionPackageError):
+        load_mission_package(archive)
+
+    assert not cache_root.exists()
+
+
+def test_unsupported_package_not_cached(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    staging_root = tmp_path / "staging"
+    cache_root = tmp_path / "cache"
+    monkeypatch.setenv("PRRC_FIELDOPS_STAGING_DIR", str(staging_root))
+    monkeypatch.setenv("PRRC_FIELDOPS_CACHE_DIR", str(cache_root))
+
+    archive = tmp_path / "package.rar"
+    archive.write_bytes(b"not really an archive")
+
+    with pytest.raises(MissionPackageError):
+        load_mission_package(archive)
+
+    assert not cache_root.exists()
+
+
 def test_directory_path_rejected(tmp_path: Path) -> None:
     directory_package = tmp_path / "folder"
     directory_package.mkdir()
