@@ -10,6 +10,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
+import shutil
 import tarfile
 import uuid
 import zipfile
@@ -104,6 +106,12 @@ def load_mission_package(package_path: Path) -> Dict[str, Any]:
     extract_dir = _prepare_extract_directory(staging_dir, resolved_path, checksum)
     extracted_files = extractor(extract_dir)
     manifest = _discover_manifest(extract_dir)
+    cache_dir, cached_files = _persist_payload_cache(
+        extract_dir,
+        resolved_path,
+        checksum,
+        manifest,
+    )
 
     return {
         "package_path": str(resolved_path),
@@ -114,6 +122,9 @@ def load_mission_package(package_path: Path) -> Dict[str, Any]:
         "extracted_files": extracted_files,
         "extracted_file_count": len(extracted_files),
         "manifest": manifest,
+        "cache_directory": str(cache_dir),
+        "cached_files": cached_files,
+        "cached_file_count": len(cached_files),
     }
 
 
@@ -404,6 +415,15 @@ def _resolve_staging_directory() -> Path:
     return base_dir
 
 
+def _resolve_cache_directory() -> Path:
+    """Return (and create) the FieldOps cache directory."""
+
+    custom = os.getenv("PRRC_FIELDOPS_CACHE_DIR")
+    base_dir = Path(custom) if custom else Path.home() / ".prrc" / "fieldops" / "cache"
+    base_dir.mkdir(parents=True, exist_ok=True)
+    return base_dir
+
+
 def _prepare_extract_directory(staging_root: Path, archive_path: Path, checksum: str) -> Path:
     """Compute a unique directory for the extracted package contents."""
 
@@ -414,6 +434,45 @@ def _prepare_extract_directory(staging_root: Path, archive_path: Path, checksum:
         candidate = staging_root / f"{archive_path.stem}-{uuid.uuid4().hex[:8]}"
     candidate.mkdir(parents=True, exist_ok=False)
     return candidate
+
+
+def _persist_payload_cache(
+    extracted_root: Path,
+    archive_path: Path,
+    checksum: str,
+    manifest: MissionManifest | None,
+) -> tuple[Path, list[str]]:
+    """Persist the extracted payloads to the FieldOps cache directory."""
+
+    cache_root = _resolve_cache_directory()
+    identifier_parts: list[str] = []
+    if manifest is not None:
+        identifier_parts.append(manifest.mission_id)
+        identifier_parts.append(manifest.version)
+    identifier_parts.append(archive_path.stem)
+    identifier_parts.append(checksum[:8])
+
+    sanitized_parts = [
+        cleaned
+        for cleaned in (_sanitize_component(part) for part in identifier_parts)
+        if cleaned
+    ]
+    sanitized = "-".join(sanitized_parts)
+    if not sanitized:
+        sanitized = uuid.uuid4().hex[:12]
+
+    destination = cache_root / sanitized
+    if destination.exists():
+        destination = cache_root / f"{sanitized}-{uuid.uuid4().hex[:8]}"
+
+    shutil.copytree(extracted_root, destination)
+
+    cached_files = sorted(
+        path.relative_to(destination).as_posix()
+        for path in destination.rglob("*")
+        if path.is_file()
+    )
+    return destination, cached_files
 
 
 def _resolve_extractor(archive_path: Path) -> Tuple[str, Callable[[Path], list[str]]]:
@@ -511,3 +570,16 @@ def _list_files(root: Path, archive_members: Iterable[str]) -> list[str]:
         if path.is_file():
             files.add(path.relative_to(root).as_posix())
     return sorted(files)
+
+
+_SANITIZE_PATTERN = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def _sanitize_component(value: str | None) -> str:
+    """Return a filesystem-safe component derived from ``value``."""
+
+    if not value:
+        return ""
+    normalized = _SANITIZE_PATTERN.sub("-", value.strip())
+    normalized = normalized.strip("-._")
+    return normalized.lower()

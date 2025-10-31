@@ -10,7 +10,7 @@
 ## Phase 1 – FieldOps Mission Package Foundation
 - [x] Verify mission package files exist, validate checksums/signatures, and support archive formats (ZIP, TAR) before extracting to a staging directory in `src/fieldops/mission_loader.py`.
 - [x] Parse a mission manifest (YAML/JSON), normalize the metadata into typed structures, and surface validation errors.
-- [ ] Persist unpacked payloads to a configurable cache directory with tests covering valid, tampered, and unsupported packages.
+- [x] Persist unpacked payloads to a configurable cache directory with tests covering valid, tampered, and unsupported packages.
 - [ ] Update docs or sample artifacts to document the accepted package schema and validation pipeline.
 
 ## Phase 2 – FieldOps Telemetry Snapshot & HQ Analytics
