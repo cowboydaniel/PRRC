@@ -1,0 +1,26 @@
+mission_id: blue-ridge-firebreak
+name: Blue Ridge Firebreak
+version: "1.0.0"
+summary: Wildland firebreak survey and brush clearing support.
+classification: CUI//EMERGENCY-RESPONSE
+created_at: 2024-04-02T13:45:00Z
+updated_at: 2024-04-05T09:30:00Z
+tags:
+  - wildfire
+  - engineering
+contacts:
+  - role: Operations Lead
+    name: CPT Jamie Ortiz
+    callsign: Hammer Six
+    channel: SATCOM Channel 3
+  - role: Safety Officer
+    name: WO1 Priya Sharma
+attachments:
+  - name: Mission Brief
+    path: briefs/blue-ridge-brief.pdf
+    media_type: application/pdf
+    checksum: 0d514fe782b8a1c9c4f2e9db8d22f83a54d9e8c2a6b0f71b8c7751c638c49c27
+    size_bytes: 983241
+  - name: Firebreak Map
+    path: maps/firebreak-lines.geojson
+    media_type: application/geo+json

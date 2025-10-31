@@ -11,7 +11,7 @@
 - [x] Verify mission package files exist, validate checksums/signatures, and support archive formats (ZIP, TAR) before extracting to a staging directory in `src/fieldops/mission_loader.py`.
 - [x] Parse a mission manifest (YAML/JSON), normalize the metadata into typed structures, and surface validation errors.
 - [x] Persist unpacked payloads to a configurable cache directory with tests covering valid, tampered, and unsupported packages.
-- [ ] Update docs or sample artifacts to document the accepted package schema and validation pipeline.
+- [x] Update docs or sample artifacts to document the accepted package schema and validation pipeline.
 
 ## Phase 2 – FieldOps Telemetry Snapshot & HQ Analytics
 - [ ] Expand `collect_telemetry_snapshot` in `src/fieldops/telemetry.py` to query sensor APIs, cached events, and queue depths while normalizing timestamps and units.
