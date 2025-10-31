@@ -1,7 +1,7 @@
 # PRRC OS Suite
 
 ## Overview
-The PRRC OS Suite is a modular, mission-focused operating environment designed to help Public Readiness and Response Corps (PRRC) teams coordinate field operations, central command decision-making, and cross-agency bridge communications. The suite delivers integrated situational awareness, secure data synchronization, and offline-first workflows tailored for crisis response scenarios.
+The PRRC OS Suite is a modular, mission-focused operating environment designed to help Paramilitary Response and Rescue Corps (PRRC) teams coordinate field operations, central command decision-making, and cross-agency bridge communications. The suite delivers integrated situational awareness, secure data synchronization, and offline-first workflows tailored for crisis response scenarios.
 
 ## Module Breakdown
 ### FieldOps
