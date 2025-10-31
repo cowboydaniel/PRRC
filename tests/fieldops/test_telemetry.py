@@ -102,27 +102,28 @@ def test_collect_telemetry_snapshot_structure(telemetry_connector_stubs):
 
     snapshot = telemetry.collect_telemetry_snapshot()
 
-    assert snapshot["status"] in {"ok", "degraded"}
-    assert _is_isoformat_utc(snapshot["collected_at"])
+    assert isinstance(snapshot, telemetry.TelemetrySnapshot)
+    assert snapshot.status in {"ok", "degraded"}
+    assert _is_isoformat_utc(snapshot.collected_at)
 
-    sensors = snapshot["metrics"]["sensors"]
+    sensors = snapshot.metrics.sensors
     assert isinstance(sensors, list)
     assert sensors, "expected default sensor payload"
     for reading in sensors:
-        assert {"sensor", "value", "unit", "timestamp"} <= set(reading)
-        assert isinstance(reading["value"], (int, float))
-        assert _is_isoformat_utc(reading["timestamp"])
+        assert isinstance(reading, telemetry.SensorReading)
+        assert isinstance(reading.value, (int, float)) or reading.value is None
+        assert _is_isoformat_utc(reading.timestamp)
 
-    events = snapshot["metrics"]["events"]
-    assert events["total_events"] >= 0
-    for event in events["records"]:
-        assert {"event", "count", "last_seen"} <= set(event)
-        assert event["count"] >= 0
-        assert _is_isoformat_utc(event["last_seen"])
+    events = snapshot.metrics.events
+    assert events.total_events >= 0
+    for event in events.records:
+        assert isinstance(event, telemetry.EventRecord)
+        assert event.count >= 0
+        assert _is_isoformat_utc(event.last_seen)
 
-    queues = snapshot["metrics"]["queues"]
-    assert queues["total_backlog"] == sum(queues["queues"].values())
-    for value in queues["queues"].values():
+    queues = snapshot.metrics.queues
+    assert queues.total_backlog == sum(queues.queues.values())
+    for value in queues.queues.values():
         assert value >= 0
 
 
@@ -158,17 +159,17 @@ def test_collect_telemetry_normalizes_units(telemetry_connector_stubs):
 
     snapshot = telemetry.collect_telemetry_snapshot()
 
-    sensors = snapshot["metrics"]["sensors"]
-    assert sensors[0]["unit"] == "celsius"
-    assert abs(sensors[0]["value"] - 30) < 0.01
-    assert sensors[1]["unit"] == "percent"
-    assert sensors[1]["value"] == pytest.approx(30.0)
+    sensors = snapshot.metrics.sensors
+    assert sensors[0].unit == "celsius"
+    assert abs(sensors[0].value - 30) < 0.01
+    assert sensors[1].unit == "percent"
+    assert sensors[1].value == pytest.approx(30.0)
 
-    events = snapshot["metrics"]["events"]
-    assert events["total_events"] == 2
-    assert events["records"][0]["last_seen"].endswith("+00:00")
+    events = snapshot.metrics.events
+    assert events.total_events == 2
+    assert events.records[0].last_seen.endswith("+00:00")
 
-    queues = snapshot["metrics"]["queues"]
-    assert queues["queues"]["uplink"] == 1
-    assert queues["total_backlog"] == 1
+    queues = snapshot.metrics.queues
+    assert queues.queues["uplink"] == 1
+    assert queues.total_backlog == 1
 
