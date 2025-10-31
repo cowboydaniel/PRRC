@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import tarfile
 import zipfile
 from pathlib import Path
@@ -9,8 +10,12 @@ from pathlib import Path
 import pytest
 
 from fieldops.mission_loader import (
+    MissionAttachment,
+    MissionManifest,
+    MissionManifestError,
     MissionPackageError,
     _compute_sha256,
+    load_mission_manifest,
     load_mission_package,
 )
 
@@ -119,3 +124,119 @@ def test_directory_path_rejected(tmp_path: Path) -> None:
 
     with pytest.raises(MissionPackageError):
         load_mission_package(directory_package)
+
+
+def test_manifest_json_parsed_into_typed_structures(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    staging_root = tmp_path / "staging"
+    monkeypatch.setenv("PRRC_FIELDOPS_STAGING_DIR", str(staging_root))
+
+    archive = tmp_path / "mission.zip"
+    manifest = {
+        "mission_id": "fs-4481",
+        "name": "Flooded Substation Rescue",
+        "version": "2024.04",
+        "summary": "Stabilize the grid and evac trapped technicians.",
+        "classification": "SECRET//NOFORN",
+        "created_at": "2024-04-12T13:15:00Z",
+        "updated_at": "2024-04-12T14:00:00+00:00",
+        "tags": ["rescue", "power"],
+        "contacts": [
+            {
+                "role": "Incident Commander",
+                "name": "Lt. C. Morales",
+                "callsign": "RIVER-6",
+                "channel": "hailing-1",
+            }
+        ],
+        "attachments": [
+            {
+                "name": "Substation Layout",
+                "path": "intel/layout.pdf",
+                "media_type": "application/pdf",
+                "size_bytes": 2048,
+            }
+        ],
+    }
+
+    intel_dir = tmp_path / "intel"
+    intel_dir.mkdir()
+    (intel_dir / "layout.pdf").write_bytes(b"%PDF-1.7\n")
+
+    with zipfile.ZipFile(archive, "w") as handle:
+        handle.writestr("manifest.json", json.dumps(manifest))
+        handle.write(intel_dir / "layout.pdf", arcname="intel/layout.pdf")
+
+    _write_sidecar(archive)
+
+    summary = load_mission_package(archive)
+    manifest_obj = summary["manifest"]
+
+    assert isinstance(manifest_obj, MissionManifest)
+    assert manifest_obj.mission_id == "fs-4481"
+    assert manifest_obj.tags == ("rescue", "power")
+    assert manifest_obj.contacts[0].callsign == "RIVER-6"
+    assert manifest_obj.attachments[0] == MissionAttachment(
+        name="Substation Layout",
+        path="intel/layout.pdf",
+        media_type="application/pdf",
+        checksum=None,
+        size_bytes=2048,
+    )
+    assert manifest_obj.source_path.name == "manifest.json"
+
+
+def test_manifest_yaml_supported(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    yaml = pytest.importorskip("yaml")
+
+    staging_root = tmp_path / "staging"
+    monkeypatch.setenv("PRRC_FIELDOPS_STAGING_DIR", str(staging_root))
+
+    archive = tmp_path / "mission.tar"
+    manifest = {
+        "mission_id": "dl-77",
+        "name": "Dam Leak Assessment",
+        "version": "1.0",
+        "created_at": "2024-03-01T09:00:00Z",
+    }
+
+    manifest_path = tmp_path / "manifest.yaml"
+    manifest_path.write_text(yaml.safe_dump(manifest), encoding="utf-8")
+
+    with tarfile.open(archive, "w") as handle:
+        handle.add(manifest_path, arcname="manifest.yaml")
+
+    _write_sidecar(archive)
+
+    summary = load_mission_package(archive)
+    manifest_obj = summary["manifest"]
+    assert isinstance(manifest_obj, MissionManifest)
+    assert manifest_obj.name == "Dam Leak Assessment"
+    assert manifest_obj.created_at.isoformat() == "2024-03-01T09:00:00+00:00"
+
+
+def test_invalid_manifest_surfaces_validation_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    staging_root = tmp_path / "staging"
+    monkeypatch.setenv("PRRC_FIELDOPS_STAGING_DIR", str(staging_root))
+
+    archive = tmp_path / "mission_invalid.zip"
+    with zipfile.ZipFile(archive, "w") as handle:
+        handle.writestr(
+            "manifest.json",
+            json.dumps({"name": "Missing Fields"}),
+        )
+
+    _write_sidecar(archive)
+
+    with pytest.raises(MissionManifestError) as excinfo:
+        load_mission_package(archive)
+    assert "mission_id" in str(excinfo.value)
+
+    # Ensure direct loader surfaces the same validation error context.
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps({"version": "0.0"}), encoding="utf-8")
+    with pytest.raises(MissionManifestError):
+        load_mission_manifest(manifest_path)

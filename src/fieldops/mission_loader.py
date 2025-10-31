@@ -1,23 +1,73 @@
-"""Mission package loading utilities for FieldOps.
+"""Mission package loading and manifest parsing utilities for FieldOps.
 
-Phase 1 focuses on file validation and staging the archive contents. The
-implementation deliberately keeps crypto lightweight by trusting local SHA256
-sidecar files until Dell Rugged hardware integrations introduce a full signing
-pipeline.
+Phase 1 focuses on validating mission package archives and preparing their
+contents for downstream workflows. This module now also owns manifest parsing
+so the CLI and future FieldOps UI layers can rely on typed metadata instead of
+unstructured dictionaries.
 """
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import tarfile
 import uuid
 import zipfile
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Tuple
+
+try:  # pragma: no cover - exercised indirectly via YAML fixtures
+    import yaml  # type: ignore
+except Exception:  # pragma: no cover - dependency is optional at runtime
+    yaml = None
 
 
 class MissionPackageError(RuntimeError):
     """Raised when a mission package fails validation."""
+
+
+class MissionManifestError(MissionPackageError):
+    """Raised when a mission manifest cannot be parsed or validated."""
+
+
+@dataclass(frozen=True)
+class MissionContact:
+    """Structured representation of a mission contact role."""
+
+    role: str
+    name: str
+    callsign: str | None = None
+    channel: str | None = None
+
+
+@dataclass(frozen=True)
+class MissionAttachment:
+    """Metadata describing supporting mission artifacts."""
+
+    name: str
+    path: str
+    media_type: str | None = None
+    checksum: str | None = None
+    size_bytes: int | None = None
+
+
+@dataclass(frozen=True)
+class MissionManifest:
+    """Normalized, strongly-typed mission manifest data."""
+
+    mission_id: str
+    name: str
+    version: str
+    summary: str | None
+    created_at: datetime
+    updated_at: datetime | None
+    classification: str | None
+    tags: tuple[str, ...]
+    contacts: tuple[MissionContact, ...]
+    attachments: tuple[MissionAttachment, ...]
+    source_path: Path
 
 
 def load_mission_package(package_path: Path) -> Dict[str, Any]:
@@ -53,6 +103,7 @@ def load_mission_package(package_path: Path) -> Dict[str, Any]:
     staging_dir = _resolve_staging_directory()
     extract_dir = _prepare_extract_directory(staging_dir, resolved_path, checksum)
     extracted_files = extractor(extract_dir)
+    manifest = _discover_manifest(extract_dir)
 
     return {
         "package_path": str(resolved_path),
@@ -62,7 +113,286 @@ def load_mission_package(package_path: Path) -> Dict[str, Any]:
         "staging_directory": str(extract_dir),
         "extracted_files": extracted_files,
         "extracted_file_count": len(extracted_files),
+        "manifest": manifest,
     }
+
+
+def load_mission_manifest(manifest_path: Path) -> MissionManifest:
+    """Load and validate a mission manifest document."""
+
+    resolved = manifest_path.expanduser()
+    if not resolved.exists():
+        raise FileNotFoundError(f"Mission manifest not found: {resolved}")
+    if not resolved.is_file():
+        raise MissionManifestError(f"Mission manifest must be a file: {resolved}")
+
+    document = _read_manifest_document(resolved)
+    return _normalize_manifest(document, resolved)
+
+
+def _discover_manifest(extracted_root: Path) -> MissionManifest | None:
+    """Search ``extracted_root`` for a mission manifest."""
+
+    manifest_candidates = [
+        extracted_root / "manifest.json",
+        extracted_root / "manifest.yaml",
+        extracted_root / "manifest.yml",
+        extracted_root / "mission_manifest.json",
+        extracted_root / "mission_manifest.yaml",
+        extracted_root / "mission_manifest.yml",
+    ]
+
+    for candidate in manifest_candidates:
+        if candidate.exists():
+            return load_mission_manifest(candidate)
+
+    # Fall back to a recursive search for atypical package layouts.
+    for path in extracted_root.rglob("*.json"):
+        if path.name.lower().startswith("manifest"):
+            return load_mission_manifest(path)
+    for path in extracted_root.rglob("*.yml"):
+        if path.name.lower().startswith("manifest") or path.name.lower().startswith("mission_manifest"):
+            return load_mission_manifest(path)
+    for path in extracted_root.rglob("*.yaml"):
+        if path.name.lower().startswith("manifest") or path.name.lower().startswith("mission_manifest"):
+            return load_mission_manifest(path)
+
+    return None
+
+
+def _read_manifest_document(path: Path) -> Dict[str, Any]:
+    """Deserialize the manifest at ``path`` into a Python mapping."""
+
+    text = path.read_text(encoding="utf-8")
+    suffix = path.suffix.lower()
+
+    if suffix == ".json":
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError as exc:  # pragma: no cover - exercised via tests
+            raise MissionManifestError(
+                f"Invalid JSON manifest ({path.name}): {exc.msg}"
+            ) from exc
+    elif suffix in {".yaml", ".yml"}:
+        if yaml is None:
+            raise MissionManifestError(
+                "YAML manifest support requires the 'PyYAML' optional dependency"
+            )
+        try:
+            data = yaml.safe_load(text)
+        except Exception as exc:  # pragma: no cover - depends on PyYAML's error types
+            raise MissionManifestError(
+                f"Invalid YAML manifest ({path.name}): {exc}"
+            ) from exc
+    else:
+        # Attempt JSON first, then YAML if installed.
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            if yaml is None:
+                raise MissionManifestError(
+                    f"Unsupported manifest extension '{suffix}' and YAML support unavailable"
+                )
+            try:
+                data = yaml.safe_load(text)
+            except Exception as exc:  # pragma: no cover
+                raise MissionManifestError(
+                    f"Manifest {path.name} is not valid JSON or YAML: {exc}"
+                ) from exc
+
+    if not isinstance(data, dict):
+        raise MissionManifestError(
+            f"Manifest root must be a mapping, got {type(data).__name__}"
+        )
+    return data
+
+
+def _normalize_manifest(document: Dict[str, Any], source: Path) -> MissionManifest:
+    """Normalize manifest ``document`` into ``MissionManifest``."""
+
+    mission_id = _require_string(document, "mission_id", source)
+    name = _require_string(document, "name", source)
+    version = _require_string(document, "version", source)
+    summary = _optional_string(document, "summary")
+    classification = _optional_string(document, "classification")
+
+    created_at = _parse_datetime(
+        _require_string(document, "created_at", source),
+        "created_at",
+        source,
+    )
+    updated_at_raw = document.get("updated_at")
+    updated_at = _parse_datetime(updated_at_raw, "updated_at", source)
+
+    tags_value = document.get("tags", [])
+    if not isinstance(tags_value, Iterable) or isinstance(tags_value, (str, bytes)):
+        raise MissionManifestError(
+            f"Manifest tags must be an iterable of strings ({source.name})"
+        )
+    tags = tuple(
+        tag
+        for tag in (
+            str(item).strip()
+            for item in tags_value
+        )
+        if tag
+    )
+
+    contacts = _normalize_contacts(document.get("contacts"), source)
+    attachments = _normalize_attachments(document.get("attachments"), source)
+
+    return MissionManifest(
+        mission_id=mission_id,
+        name=name,
+        version=version,
+        summary=summary,
+        created_at=created_at,
+        updated_at=updated_at,
+        classification=classification,
+        tags=tags,
+        contacts=contacts,
+        attachments=attachments,
+        source_path=source,
+    )
+
+
+def _require_string(data: Dict[str, Any], field: str, source: Path) -> str:
+    value = data.get(field)
+    if not isinstance(value, str) or not value.strip():
+        raise MissionManifestError(
+            f"Manifest field '{field}' must be a non-empty string ({source.name})"
+        )
+    return value.strip()
+
+
+def _optional_string(data: Dict[str, Any], field: str) -> str | None:
+    value = data.get(field)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise MissionManifestError(
+            f"Manifest field '{field}' must be a string when provided"
+        )
+    stripped = value.strip()
+    return stripped or None
+
+
+def _parse_datetime(value: Any, field: str, source: Path) -> datetime | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise MissionManifestError(
+            f"Manifest field '{field}' must be an ISO 8601 string ({source.name})"
+        )
+    cleaned = value.strip()
+    if cleaned.endswith("Z"):
+        cleaned = cleaned[:-1] + "+00:00"
+    try:
+        return datetime.fromisoformat(cleaned)
+    except ValueError as exc:
+        raise MissionManifestError(
+            f"Manifest field '{field}' is not a valid ISO 8601 timestamp"
+        ) from exc
+
+
+def _normalize_contacts(value: Any, source: Path) -> tuple[MissionContact, ...]:
+    if value is None:
+        return tuple()
+    if not isinstance(value, Iterable) or isinstance(value, (str, bytes)):
+        raise MissionManifestError(
+            f"Manifest contacts must be a list of mappings ({source.name})"
+        )
+
+    contacts: list[MissionContact] = []
+    for idx, item in enumerate(value):
+        if not isinstance(item, dict):
+            raise MissionManifestError(
+                f"Manifest contact at index {idx} must be a mapping ({source.name})"
+            )
+        role = _require_nested_string(item, "role", source, f"contacts[{idx}]")
+        name = _require_nested_string(item, "name", source, f"contacts[{idx}]")
+        callsign = _optional_nested_string(item, "callsign", source, f"contacts[{idx}]")
+        channel = _optional_nested_string(item, "channel", source, f"contacts[{idx}]")
+        contacts.append(
+            MissionContact(
+                role=role,
+                name=name,
+                callsign=callsign,
+                channel=channel,
+            )
+        )
+    return tuple(contacts)
+
+
+def _normalize_attachments(value: Any, source: Path) -> tuple[MissionAttachment, ...]:
+    if value is None:
+        return tuple()
+    if not isinstance(value, Iterable) or isinstance(value, (str, bytes)):
+        raise MissionManifestError(
+            f"Manifest attachments must be a list of mappings ({source.name})"
+        )
+
+    attachments: list[MissionAttachment] = []
+    for idx, item in enumerate(value):
+        if not isinstance(item, dict):
+            raise MissionManifestError(
+                f"Manifest attachment at index {idx} must be a mapping ({source.name})"
+            )
+        name = _require_nested_string(item, "name", source, f"attachments[{idx}]")
+        path_value = _require_nested_string(item, "path", source, f"attachments[{idx}]")
+        media_type = _optional_nested_string(item, "media_type", source, f"attachments[{idx}]")
+        checksum = _optional_nested_string(item, "checksum", source, f"attachments[{idx}]")
+        size_value = item.get("size_bytes")
+        if size_value is not None:
+            if isinstance(size_value, bool) or not isinstance(size_value, int):
+                raise MissionManifestError(
+                    f"Manifest attachment 'size_bytes' must be an integer ({source.name})"
+                )
+            if size_value < 0:
+                raise MissionManifestError(
+                    "Manifest attachment 'size_bytes' must be non-negative"
+                )
+        attachments.append(
+            MissionAttachment(
+                name=name,
+                path=path_value,
+                media_type=media_type,
+                checksum=checksum,
+                size_bytes=size_value,
+            )
+        )
+    return tuple(attachments)
+
+
+def _require_nested_string(
+    data: Dict[str, Any],
+    field: str,
+    source: Path,
+    context: str,
+) -> str:
+    value = data.get(field)
+    if not isinstance(value, str) or not value.strip():
+        raise MissionManifestError(
+            f"Manifest field '{context}.{field}' must be a non-empty string ({source.name})"
+        )
+    return value.strip()
+
+
+def _optional_nested_string(
+    data: Dict[str, Any],
+    field: str,
+    source: Path,
+    context: str,
+) -> str | None:
+    value = data.get(field)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise MissionManifestError(
+            f"Manifest field '{context}.{field}' must be a string when provided ({source.name})"
+        )
+    stripped = value.strip()
+    return stripped or None
 
 
 def _resolve_staging_directory() -> Path:
