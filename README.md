@@ -5,12 +5,20 @@ The PRRC OS Suite is a modular, mission-focused operating environment designed t
 
 ## Module Breakdown
 ### FieldOps
-* **Purpose:** Mobile-first toolkit for responders in the field.
+* **Purpose:** Mobile-first toolkit for responders in the field, optimized for Dell Rugged Extreme tablets and laptops used by deployed teams.
 * **Key Capabilities:**
   * Incident logging with geospatial tagging and offline queueing.
   * Resource request workflows synchronized with HQ Command.
   * Local cache encryption for sensitive case data.
   * Mesh-compatible data sync for austere environments.
+* **Hardware Profile:** Tuned for Dell Rugged Extreme devices (Latitude 7230/7330) with pre-configured power profiles, glove-capacitive touch modes, and sunlight-readable display settings.
+
+### Hardware Target Considerations
+FieldOps development and testing centers on Dell Rugged Extreme tablets and laptops. Contributors should account for the following platform specifics:
+* **Drivers & Firmware:** Validate Broadcom/Intel Wi-Fi, GNSS, and touchscreen drivers from Dell's rugged support matrix. Confirm BIOS and firmware updates align with PRRC-approved baselines.
+* **Sensor Stack:** Use Dell-provided APIs for accelerometers, barometers, and ambient light sensors to keep telemetry feeds consistent with deployed units.
+* **Power Management:** Maintain the "Rugged Enhanced" Dell power profile, ensuring background sync jobs respect battery safeguards and thermal limits.
+* **Peripheral Support:** Test barcode/RFID scanners and smart card readers connected via the rugged pogo or USB-C interfaces, as these are part of the standard kit.
 
 ### HQ Command
 * **Purpose:** Central planning and analysis console for command staff.
@@ -42,6 +50,7 @@ The PRRC OS Suite is a modular, mission-focused operating environment designed t
    ```bash
    sudo apt install podman
    ```
+4. Install Dell Rugged Extreme hardware enablers (touchscreen, GNSS, sensor services) from the Dell repository or via the provided field image. Confirm the "Rugged Enhanced" power profile is active after driver installation.
 
 ### Arch-based Systems (Arch, Manjaro, EndeavourOS)
 1. Synchronize package databases and upgrade:
@@ -57,6 +66,7 @@ The PRRC OS Suite is a modular, mission-focused operating environment designed t
    sudo systemctl enable --now postgresql
    sudo -u postgres initdb -D /var/lib/postgres/data
    ```
+4. Install Dell Rugged Extreme driver bundles (touchscreen, WWAN, GNSS) using the Dell Linux repository or PKGBUILDs provided in `docs/hardware/dell-rugged`. Apply the Dell-recommended BIOS configuration file to enable sensor passthrough and power guardrails.
 
 ## Initial Setup & Usage Workflow
 1. **Clone the repository and bootstrap the environment:**
@@ -102,6 +112,7 @@ The PRRC OS Suite is a modular, mission-focused operating environment designed t
 * **Peer-to-Peer Sync:** In absence of HQ connectivity, FieldOps nodes form a mesh using Wi-Fi Direct or LoRa gateways; Bridge queues remote messages until uplink restores.
 * **Deferred Command Updates:** HQ Command dashboards present cached metrics and highlight stale data. Commanders can draft orders offline; Bridge releases them when connectivity resumes.
 * **Operational Checklists:** Teams should follow the `docs/offline-playbook.md` (coming soon) for pre-deployment synchronization, manual key rotation, and cache verification.
+* **Dell Rugged Readiness:** Verify all Dell Rugged Extreme sensor services are running in offline caches, ensure hot-swappable batteries are calibrated, and confirm the glove-mode toggle is accessible before going dark.
 
 ## Future Roadmap
 * **Scenario Simulation Engine:** Build red/blue team training scenarios within HQ Command to stress-test response plans.
