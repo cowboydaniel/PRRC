@@ -19,6 +19,16 @@
 - [ ] Implement analytics in `src/hq_command/analytics.py` that compute readiness indicators, trend deltas, and alert thresholds.
 - [ ] Add unit tests with synthetic telemetry datasets, including edge cases, and integrate the status path in `src/prrc_cli.py`.
 
+## Phase 2.5 – FieldOps GUI Foundation
+- [ ] Deliver an offline-first FieldOps GUI optimized for Dell Rugged hardware with clear sync status, conflict resolution prompts, and mesh networking awareness.
+- [ ] Implement mission intake and briefing flows that surface package metadata once `load_mission_package` verifies archives, with quick links to SOPs, maps, and communications.
+- [ ] Build operational logging forms supporting GPS tagging, photo attachments, offline queueing, and status banners displaying sync and backlog counts.
+- [ ] Introduce resource request and task dashboards that allow accepting, deferring, and escalating assignments while offline with merges on reconnection.
+- [ ] Surface telemetry snapshots from `collect_telemetry_snapshot` through card-based metrics that degrade gracefully when collectors are stubbed.
+- [ ] Provide settings and hardware tools for calibration workflows (`plan_touchscreen_calibration`) and serial diagnostics (`enumerate_serial_interfaces`).
+- [ ] Establish responsive, touch-friendly layouts with design tokens for high-contrast themes, large touch targets, and glove-friendly gestures.
+- [ ] Sequence integration through data contracts and mocks, offline cache and sync, hardware-aware polish, and HQ interoperability milestones.
+
 ## Phase 3 – HQ Tasking Engine Rollout
 - [ ] Introduce task and responder models in `src/hq_command/tasking_engine.py` describing constraints, priority, and capability requirements.
 - [ ] Implement scoring and matching logic that allocates tasks to available units, handling conflicts, partial fulfillment, and escalation.
