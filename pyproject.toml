@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "prrc-os-suite"
+version = "0.1.0"
+description = "Prototype scaffolding for the PRRC OS Suite"
+readme = "README.md"
+authors = [
+    { name = "PRRC Engineering" }
+]
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://example.org/prrc/prrc-os-suite"
+
+[project.scripts]
+prrc = "prrc_cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
