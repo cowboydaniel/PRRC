@@ -7,7 +7,11 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from fieldops import load_mission_package, collect_telemetry_snapshot
+from fieldops import (
+    load_mission_package,
+    collect_telemetry_snapshot,
+    plan_touchscreen_calibration,
+)
 from hq_command import summarize_field_telemetry
 from bridge import route_message_to_partner
 
@@ -39,6 +43,15 @@ def send_bridge_message_command(payload: str) -> None:
         print(f"  {key}: {value}")
 
 
+def calibrate_touchscreen_command(profile: str | None) -> None:
+    """Handle the `calibrate-touchscreen` command."""
+    profile_path = Path(profile) if profile else None
+    plan = plan_touchscreen_calibration(profile_path)
+    print("Touchscreen calibration plan:")
+    for key, value in plan.items():
+        print(f"  {key}: {value}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Construct the top-level CLI parser."""
     parser = argparse.ArgumentParser(description="PRRC OS Suite CLI prototype")
@@ -67,6 +80,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Message contents to simulate forwarding",
     )
 
+    calibrate_parser = subparsers.add_parser(
+        "calibrate-touchscreen",
+        help="Plan a Dell Rugged Extreme touchscreen calibration routine",
+    )
+    calibrate_parser.add_argument(
+        "--profile",
+        help="Optional calibration profile to reuse",
+    )
+
     return parser
 
 
@@ -76,6 +98,7 @@ def dispatch(args: argparse.Namespace) -> None:
         "load-mission": lambda: load_mission_command(args.package),
         "status": status_command,
         "bridge-send": lambda: send_bridge_message_command(args.payload),
+        "calibrate-touchscreen": lambda: calibrate_touchscreen_command(args.profile),
     }
     handler = command_map[args.command]
     handler()
