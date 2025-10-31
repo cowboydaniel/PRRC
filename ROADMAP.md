@@ -19,7 +19,7 @@
 - [ ] Implement analytics in `src/hq_command/analytics.py` that compute readiness indicators, trend deltas, and alert thresholds.
 - [ ] Add unit tests with synthetic telemetry datasets, including edge cases, and integrate the status path in `src/prrc_cli.py`.
 
-## Phase 2.5 – FieldOps GUI Foundation
+## Phase 3 – FieldOps GUI Foundation
 - [ ] Deliver an offline-first FieldOps GUI optimized for Dell Rugged hardware with clear sync status, conflict resolution prompts, and mesh networking awareness.
 - [ ] Implement mission intake and briefing flows that surface package metadata once `load_mission_package` verifies archives, with quick links to SOPs, maps, and communications.
 - [ ] Build operational logging forms supporting GPS tagging, photo attachments, offline queueing, and status banners displaying sync and backlog counts.
@@ -29,19 +29,19 @@
 - [ ] Establish responsive, touch-friendly layouts with design tokens for high-contrast themes, large touch targets, and glove-friendly gestures.
 - [ ] Sequence integration through data contracts and mocks, offline cache and sync, hardware-aware polish, and HQ interoperability milestones.
 
-## Phase 3 – HQ Tasking Engine Rollout
+## Phase 4 – HQ Tasking Engine Rollout
 - [ ] Introduce task and responder models in `src/hq_command/tasking_engine.py` describing constraints, priority, and capability requirements.
 - [ ] Implement scoring and matching logic that allocates tasks to available units, handling conflicts, partial fulfillment, and escalation.
 - [ ] Emit structured results with assignments, deferred tasks, and audit metadata exposed via an API/service layer for FieldOps synchronization.
 - [ ] Create tests that simulate mixed-priority queues and responder availability scenarios to verify deterministic scheduling and error handling.
 
-## Phase 4 – Bridge Communications & Compliance
+## Phase 5 – Bridge Communications & Compliance
 - [ ] Implement protocol adapters in `src/bridge/comms_router.py` (REST, MQ, secure file drop) with configurable endpoints, mutual TLS, and payload signing.
 - [ ] Integrate retry logic, dead-letter queues, and partner-specific transformations while storing routing outcomes for analytics.
 - [ ] Build an audit persistence layer in `src/bridge/compliance.py` targeting tamper-evident storage with jurisdiction retention policies.
 - [ ] Add automated tests simulating successful routes, partner failures, and compliance audits to confirm routing metadata and audit records.
 
-## Phase 5 – CLI, Integration, and Testing Hardening
+## Phase 6 – CLI, Integration, and Testing Hardening
 - [ ] Update `src/prrc_cli.py` to present enriched mission, telemetry, and bridge data with structured output options and robust error handling.
 - [ ] Introduce integration tests exercising end-to-end workflows (`load-mission`, `status`, `bridge-send`) using temporary directories and mocked services.
 - [ ] Wire the CLI into packaging/entry-point configuration (e.g., `pyproject.toml`) and document usage examples reflecting implemented functionality.
