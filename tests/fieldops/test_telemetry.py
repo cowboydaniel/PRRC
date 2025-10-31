@@ -6,6 +6,90 @@ from datetime import datetime, timezone
 import pytest
 
 from fieldops import telemetry
+from fieldops.connectors import FieldOpsTelemetryConfig
+
+
+@pytest.fixture
+def telemetry_connector_stubs(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
+    """Patch telemetry module to use deterministic connector stubs."""
+
+    config = FieldOpsTelemetryConfig(
+        api_base_url="https://fieldops.test",
+        api_token="test-token",
+        sensor_device_id="device-001",
+        event_cache_id="cache-001",
+        queue_group="uplink-queue",
+        timeout_seconds=1.0,
+    )
+
+    monkeypatch.setattr(telemetry, "_get_telemetry_config", lambda: config)
+
+    class SensorClientStub:
+        def __init__(self) -> None:
+            self.payload = [
+                {
+                    "sensor": "temperature_probe",
+                    "value": 72.4,
+                    "unit": "fahrenheit",
+                    "timestamp": "2024-01-01T12:00:00+00:00",
+                }
+            ]
+
+        def fetch_latest_readings(self, device_id: str):  # pragma: no cover - type narrow
+            assert device_id == config.sensor_device_id
+            return list(self.payload)
+
+    class EventClientStub:
+        def __init__(self) -> None:
+            self.payload = [
+                {
+                    "event": "motion_detected",
+                    "count": 3,
+                    "last_seen": "2024-01-01T11:58:00+00:00",
+                }
+            ]
+
+        def fetch_cached_events(self, cache_id: str):  # pragma: no cover - type narrow
+            assert cache_id == config.event_cache_id
+            return list(self.payload)
+
+    class QueueClientStub:
+        def __init__(self) -> None:
+            self.payload = {
+                "uplink": 4,
+                "alerts": 1,
+            }
+
+        def fetch_queue_depths(self, queue_group: str):  # pragma: no cover - type narrow
+            assert queue_group == config.queue_group
+            return dict(self.payload)
+
+    sensor_stub = SensorClientStub()
+    event_stub = EventClientStub()
+    queue_stub = QueueClientStub()
+
+    monkeypatch.setattr(
+        telemetry,
+        "FieldOpsSensorClient",
+        lambda *args, **kwargs: sensor_stub,
+    )
+    monkeypatch.setattr(
+        telemetry,
+        "FieldOpsEventClient",
+        lambda *args, **kwargs: event_stub,
+    )
+    monkeypatch.setattr(
+        telemetry,
+        "FieldOpsQueueClient",
+        lambda *args, **kwargs: queue_stub,
+    )
+
+    return {
+        "config": config,
+        "sensor_stub": sensor_stub,
+        "event_stub": event_stub,
+        "queue_stub": queue_stub,
+    }
 
 
 def _is_isoformat_utc(value: str) -> bool:
@@ -13,7 +97,7 @@ def _is_isoformat_utc(value: str) -> bool:
     return parsed.tzinfo is not None and parsed.tzinfo.utcoffset(parsed) == timezone.utc.utcoffset(parsed)
 
 
-def test_collect_telemetry_snapshot_structure():
+def test_collect_telemetry_snapshot_structure(telemetry_connector_stubs):
     """Default collector returns normalized structures and metadata."""
 
     snapshot = telemetry.collect_telemetry_snapshot()
@@ -42,40 +126,35 @@ def test_collect_telemetry_snapshot_structure():
         assert value >= 0
 
 
-def test_collect_telemetry_normalizes_units(monkeypatch: pytest.MonkeyPatch):
+def test_collect_telemetry_normalizes_units(telemetry_connector_stubs):
     """Unit conversion and timestamp parsing occurs for injected telemetry."""
 
-    def fake_sensor_data():
-        return [
-            {
-                "sensor": "temp",  # Fahrenheit to Celsius conversion
-                "value": 86,
-                "unit": "fahrenheit",
-                "timestamp": "2024-01-01T12:00:00",
-            },
-            {
-                "sensor": "humidity",
-                "value": 0.30,
-                "unit": "ratio",
-                "timestamp": datetime(2024, 1, 1, 11, 59, tzinfo=timezone.utc),
-            },
-        ]
+    stubs = telemetry_connector_stubs
 
-    def fake_events():
-        return [
-            {
-                "event": "heartbeat",
-                "count": 2,
-                "last_seen": "2024-01-01T11:58:00+00:00",
-            }
-        ]
+    stubs["sensor_stub"].payload = [
+        {
+            "sensor": "temp",  # Fahrenheit to Celsius conversion
+            "value": 86,
+            "unit": "fahrenheit",
+            "timestamp": "2024-01-01T12:00:00",
+        },
+        {
+            "sensor": "humidity",
+            "value": 0.30,
+            "unit": "ratio",
+            "timestamp": datetime(2024, 1, 1, 11, 59, tzinfo=timezone.utc),
+        },
+    ]
 
-    def fake_queues():
-        return {"uplink": 1, "alerts": 0}
+    stubs["event_stub"].payload = [
+        {
+            "event": "heartbeat",
+            "count": 2,
+            "last_seen": "2024-01-01T11:58:00+00:00",
+        }
+    ]
 
-    monkeypatch.setattr(telemetry, "_load_sensor_api_data", fake_sensor_data)
-    monkeypatch.setattr(telemetry, "_load_cached_events", fake_events)
-    monkeypatch.setattr(telemetry, "_load_queue_depths", fake_queues)
+    stubs["queue_stub"].payload = {"uplink": 1, "alerts": 0}
 
     snapshot = telemetry.collect_telemetry_snapshot()
 

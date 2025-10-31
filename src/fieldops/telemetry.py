@@ -11,6 +11,13 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, Mapping, MutableMapping, Sequence
 
+from .connectors import (
+    FieldOpsEventClient,
+    FieldOpsQueueClient,
+    FieldOpsSensorClient,
+    FieldOpsTelemetryConfig,
+)
+
 
 def collect_telemetry_snapshot() -> Dict[str, Any]:
     """Collect a snapshot of local telemetry data.
@@ -62,58 +69,40 @@ def collect_telemetry_snapshot() -> Dict[str, Any]:
     }
 
 
-def _load_sensor_api_data() -> Sequence[Mapping[str, Any]]:
-    """Simulate data returned from local sensor APIs."""
+def _get_telemetry_config() -> FieldOpsTelemetryConfig:
+    """Return the telemetry configuration sourced from the environment."""
 
-    base_time = datetime.now(timezone.utc) - timedelta(seconds=5)
-    return [
-        {
-            "sensor": "temperature_probe",
-            "value": 72.4,
-            "unit": "fahrenheit",
-            "timestamp": base_time.isoformat(),
-        },
-        {
-            "sensor": "humidity_probe",
-            "value": 0.48,
-            "unit": "ratio",
-            "timestamp": (base_time - timedelta(seconds=12)).isoformat(),
-        },
-        {
-            "sensor": "barometer",
-            "value": 14.1,
-            "unit": "psi",
-            "timestamp": base_time.isoformat(),
-        },
-    ]
+    return FieldOpsTelemetryConfig.from_env()
+
+
+def _load_sensor_api_data() -> Sequence[Mapping[str, Any]]:
+    """Load sensor readings from the FieldOps sensor API."""
+
+    config = _get_telemetry_config()
+    client = FieldOpsSensorClient(
+        config.api_base_url, config.api_token, config.timeout_seconds
+    )
+    return client.fetch_latest_readings(config.sensor_device_id)
 
 
 def _load_cached_events() -> Iterable[Mapping[str, Any]]:
-    """Simulate recent cached events that have not yet been uploaded."""
+    """Load cached events from the FieldOps event API."""
 
-    now = datetime.now(timezone.utc)
-    return [
-        {
-            "event": "motion_detected",
-            "count": 3,
-            "last_seen": (now - timedelta(minutes=2)).isoformat(),
-        },
-        {
-            "event": "battery_alert",
-            "count": 1,
-            "last_seen": (now - timedelta(minutes=15)).isoformat(),
-        },
-    ]
+    config = _get_telemetry_config()
+    client = FieldOpsEventClient(
+        config.api_base_url, config.api_token, config.timeout_seconds
+    )
+    return client.fetch_cached_events(config.event_cache_id)
 
 
 def _load_queue_depths() -> Mapping[str, Any]:
-    """Simulate queue depth metrics for uplink and alert pipelines."""
+    """Load queue depth metrics from the FieldOps queue API."""
 
-    return {
-        "uplink": 4,
-        "alerts": 1,
-        "diagnostics": 0,
-    }
+    config = _get_telemetry_config()
+    client = FieldOpsQueueClient(
+        config.api_base_url, config.api_token, config.timeout_seconds
+    )
+    return client.fetch_queue_depths(config.queue_group)
 
 
 def _normalize_sensor_reading(
