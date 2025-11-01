@@ -24,10 +24,10 @@
 - [x] Implement mission intake and briefing flows that surface package metadata once `load_mission_package` verifies archives, with quick links to SOPs, maps, and communications.
 - [x] Build operational logging forms supporting GPS tagging, photo attachments, offline queueing, and status banners displaying sync and backlog counts.
 - [x] Introduce resource request and task dashboards that allow accepting, deferring, and escalating assignments while offline with merges on reconnection.
-- [ ] Surface telemetry snapshots from `collect_telemetry_snapshot` through card-based metrics that degrade gracefully when collectors are stubbed.
-- [ ] Provide settings and hardware tools for calibration workflows (`plan_touchscreen_calibration`) and serial diagnostics (`enumerate_serial_interfaces`).
-- [ ] Establish responsive, touch-friendly layouts with design tokens for high-contrast themes, large touch targets, and glove-friendly gestures.
-- [ ] Sequence integration through data contracts and mocks, offline cache and sync, hardware-aware polish, and HQ interoperability milestones.
+- [x] Surface telemetry snapshots from `collect_telemetry_snapshot` through card-based metrics that degrade gracefully when collectors are stubbed.
+- [x] Provide settings and hardware tools for calibration workflows (`plan_touchscreen_calibration`) and serial diagnostics (`enumerate_serial_interfaces`).
+- [x] Establish responsive, touch-friendly layouts with design tokens for high-contrast themes, large touch targets, and glove-friendly gestures.
+- [x] Sequence integration through data contracts and mocks, offline cache and sync, hardware-aware polish, and HQ interoperability milestones.
 
 ## Phase 4 – HQ Tasking Engine Rollout
 - [ ] Introduce task and responder models in `src/hq_command/tasking_engine.py` describing constraints, priority, and capability requirements.

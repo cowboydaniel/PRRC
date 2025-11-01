@@ -1,4 +1,24 @@
 """Offline-first FieldOps GUI foundation exports."""
+from __future__ import annotations
+
+try:  # pragma: no cover - import guard for optional PySide6 runtime
+    from .app import FieldOpsMainWindow, LocalEchoSyncAdapter, launch_app
+except Exception as exc:  # pragma: no cover - only triggered when PySide6 missing
+    _IMPORT_ERROR = exc
+
+    class _UnavailableGUI:  # type: ignore[misc]
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError(
+                "PySide6 is required to use the FieldOps GUI components"
+            ) from _IMPORT_ERROR
+
+    def launch_app(*_args, **_kwargs):
+        raise RuntimeError(
+            "PySide6 is required to launch the FieldOps GUI"
+        ) from _IMPORT_ERROR
+
+    FieldOpsMainWindow = _UnavailableGUI  # type: ignore[assignment]
+    LocalEchoSyncAdapter = _UnavailableGUI  # type: ignore[assignment]
 from .controller import FieldOpsGUIController, SyncAdapter
 from .state import (
     ConflictPrompt,
@@ -41,6 +61,9 @@ from .styles import (
 )
 
 __all__ = [
+    "FieldOpsMainWindow",
+    "LocalEchoSyncAdapter",
+    "launch_app",
     "FieldOpsGUIController",
     "SyncAdapter",
     "ConflictPrompt",

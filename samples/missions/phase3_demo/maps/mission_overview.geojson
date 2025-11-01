@@ -1,0 +1,15 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Forward Aid Station"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-105.001, 39.752]
+      }
+    }
+  ]
+}

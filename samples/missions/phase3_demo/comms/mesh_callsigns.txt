@@ -1,0 +1,3 @@
+ALPHA-1  Secure Mesh 3
+BRAVO-2  Secure Mesh 3
+CHARLIE-6  Backup SAT 1
