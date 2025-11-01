@@ -17,7 +17,7 @@
 - [x] Expand `collect_telemetry_snapshot` in `src/fieldops/telemetry.py` to query sensor APIs, cached events, and queue depths while normalizing timestamps and units.
 - [x] Define typed schemas (dataclasses or TypedDict) representing telemetry snapshots for downstream consumers.
 - [x] Implement analytics in `src/hq_command/analytics.py` that compute readiness indicators, trend deltas, and alert thresholds.
-- [ ] Add unit tests with synthetic telemetry datasets, including edge cases, and integrate the status path in `src/prrc_cli.py`.
+- [ ] Add unit tests with telemetry datasets, including edge cases, and integrate the status path in `src/prrc_cli.py`.
 
 ## Phase 3 – FieldOps GUI Foundation
 - [ ] Deliver an offline-first FieldOps GUI optimized for Dell Rugged hardware with clear sync status, conflict resolution prompts, and mesh networking awareness.
