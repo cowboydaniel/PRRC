@@ -4,6 +4,17 @@ Provides top-level exports for mission package loading, Dell Rugged Extreme
 hardware coordination, and field telemetry utilities.
 """
 
+from .gui import (
+    ConflictPrompt,
+    FieldOpsGUIController,
+    FieldOpsGUIState,
+    MeshLink,
+    MeshTopology,
+    OfflineOperation,
+    SyncAdapter,
+    SyncResult,
+    SyncState,
+)
 from .mission_loader import (
     MissionAttachment,
     MissionContact,
@@ -23,4 +34,13 @@ __all__ = [
     "collect_telemetry_snapshot",
     "plan_touchscreen_calibration",
     "enumerate_serial_interfaces",
+    "FieldOpsGUIController",
+    "FieldOpsGUIState",
+    "SyncState",
+    "SyncResult",
+    "OfflineOperation",
+    "ConflictPrompt",
+    "MeshLink",
+    "MeshTopology",
+    "SyncAdapter",
 ]
