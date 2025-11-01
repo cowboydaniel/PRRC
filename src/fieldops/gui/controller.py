@@ -3,19 +3,25 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Iterable, Protocol, Sequence
+from typing import Callable, Iterable, Mapping, Protocol, Sequence
 
 from .offline_cache import OfflineQueueStorage
 from .state import (
     ConflictPrompt,
     FieldOpsGUIState,
+    MissionAttachmentLink,
+    MissionBriefing,
+    MissionQuickLinks,
+    MissionWorkspaceState,
     MeshHealth,
     MeshLink,
     MeshTopology,
     OfflineOperation,
     SyncResult,
     SyncState,
+    empty_mission_workspace,
 )
+from ..mission_loader import MissionAttachment, MissionManifest, load_mission_package
 
 
 class SyncAdapter(Protocol):
@@ -37,11 +43,13 @@ class FieldOpsGUIController:
         sync_adapter: SyncAdapter,
         *,
         clock: Callable[[], datetime] | None = None,
+        mission_loader: Callable[[Path], Mapping[str, object]] | None = None,
     ) -> None:
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._adapter = sync_adapter
         self._storage = OfflineQueueStorage(cache_path)
         self._queue: list[OfflineOperation] = self._storage.load()
+        self._mission_loader = mission_loader or load_mission_package
         initial_mode = "idle" if self._adapter.is_available() else "offline"
         self._state = FieldOpsGUIState(
             sync=SyncState(
@@ -54,6 +62,7 @@ class FieldOpsGUIController:
             offline_queue=tuple(self._queue),
             conflict_prompts=(),
             mesh=MeshTopology(links=(), mesh_health="unknown", last_updated=None, mesh_summary="Mesh scan pending"),
+            mission_workspace=empty_mission_workspace(),
         )
 
     def get_state(self) -> FieldOpsGUIState:
@@ -176,6 +185,48 @@ class FieldOpsGUIController:
             )
         return topology
 
+    def ingest_mission_package(self, package_path: Path) -> MissionWorkspaceState:
+        """Ingest a mission package and update the workspace state."""
+
+        summary = self._mission_loader(package_path)
+        manifest = summary.get("manifest")
+        workspace = self._state.mission_workspace
+        if isinstance(manifest, MissionManifest):
+            attachments = self._build_attachment_links(manifest)
+            quick_links = MissionQuickLinks(
+                sop=tuple(link for link in attachments if link.category == "sop"),
+                maps=tuple(link for link in attachments if link.category == "map"),
+                comms=tuple(link for link in attachments if link.category == "comms"),
+            )
+            mission = MissionBriefing.from_manifest(
+                manifest,
+                quick_links=quick_links,
+                attachments=attachments,
+            )
+            headline = f"{mission.name} ready for briefing"
+            workspace = workspace.with_updates(
+                status="ready",
+                headline=headline,
+                mission=mission,
+                package_path=str(summary.get("package_path")) if summary.get("package_path") else None,
+                staging_directory=str(summary.get("staging_directory")) if summary.get("staging_directory") else None,
+                cache_directory=str(summary.get("cache_directory")) if summary.get("cache_directory") else None,
+                extracted_file_count=summary.get("extracted_file_count"),
+            )
+        else:
+            workspace = workspace.with_updates(
+                status="staged",
+                headline="Package staged – manifest not found",
+                mission=None,
+                package_path=str(summary.get("package_path")) if summary.get("package_path") else None,
+                staging_directory=str(summary.get("staging_directory")) if summary.get("staging_directory") else None,
+                cache_directory=str(summary.get("cache_directory")) if summary.get("cache_directory") else None,
+                extracted_file_count=summary.get("extracted_file_count"),
+            )
+
+        self._state = self._state.with_updates(mission_workspace=workspace)
+        return workspace
+
     def _set_sync_state(
         self,
         *,
@@ -236,4 +287,55 @@ class FieldOpsGUIController:
             peer=best_peer.node_id,
             signal=best_peer.signal_dbm,
         )
+
+    def _build_attachment_links(self, manifest: MissionManifest) -> tuple[MissionAttachmentLink, ...]:
+        links: list[MissionAttachmentLink] = []
+        for attachment in manifest.attachments:
+            category = self._categorize_attachment(attachment)
+            color_token = self._color_for_category(category)
+            label = attachment.name or Path(attachment.path).name
+            badge = self._badge_for_attachment(attachment)
+            links.append(
+                MissionAttachmentLink.from_manifest(
+                    attachment,
+                    label=label,
+                    category=category,
+                    color_token=color_token,
+                    badge=badge,
+                )
+            )
+        return tuple(links)
+
+    @staticmethod
+    def _categorize_attachment(attachment: MissionAttachment) -> str:
+        name = (attachment.name or Path(attachment.path).name).lower()
+        media_type = (attachment.media_type or "").lower()
+        if "sop" in name or "standard operating" in name:
+            return "sop"
+        if "map" in name or "geo" in name or "grid" in name or media_type.startswith("image/"):
+            return "map"
+        if any(token in name for token in ("comm", "radio", "freq", "call")) or "text/plain" in media_type:
+            return "comms"
+        return "attachment"
+
+    @staticmethod
+    def _color_for_category(category: str) -> str:
+        if category == "sop":
+            return "primary"
+        if category == "map":
+            return "secondary"
+        if category == "comms":
+            return "accent"
+        return "neutral_700"
+
+    @staticmethod
+    def _badge_for_attachment(attachment: MissionAttachment) -> str | None:
+        if attachment.media_type:
+            subtype = attachment.media_type.split("/")[-1]
+            if subtype:
+                return subtype.upper()
+        suffix = Path(attachment.path).suffix
+        if suffix:
+            return suffix.lstrip(".").upper()
+        return None
 

@@ -12,9 +12,11 @@ state representation without requiring a Qt event loop.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Any, Mapping, Sequence
+
+from ..mission_loader import MissionAttachment, MissionContact, MissionManifest
 
 SyncMode = str
 MeshHealth = str
@@ -142,6 +144,7 @@ class FieldOpsGUIState:
     offline_queue: tuple[OfflineOperation, ...]
     conflict_prompts: tuple[ConflictPrompt, ...]
     mesh: MeshTopology
+    mission_workspace: "MissionWorkspaceState"
 
     def with_updates(self, **updates: Any) -> "FieldOpsGUIState":
         """Return a modified copy with ``updates`` applied."""
@@ -156,4 +159,145 @@ class SyncResult:
     applied_operation_ids: tuple[str, ...]
     conflicts: tuple[ConflictPrompt, ...]
     errors: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class MissionContactCard:
+    """Presentation-ready mission contact information."""
+
+    role: str
+    name: str
+    callsign: str | None = None
+    channel: str | None = None
+
+    @classmethod
+    def from_manifest(cls, contact: MissionContact) -> "MissionContactCard":
+        """Build a card from a manifest contact."""
+
+        return cls(
+            role=contact.role,
+            name=contact.name,
+            callsign=contact.callsign,
+            channel=contact.channel,
+        )
+
+
+@dataclass(frozen=True)
+class MissionAttachmentLink:
+    """Attachment metadata tuned for quick-link presentation."""
+
+    label: str
+    path: str
+    category: str
+    color_token: str
+    media_type: str | None = None
+    badge: str | None = None
+
+    @classmethod
+    def from_manifest(
+        cls,
+        attachment: MissionAttachment,
+        *,
+        label: str,
+        category: str,
+        color_token: str,
+        badge: str | None,
+    ) -> "MissionAttachmentLink":
+        """Create a presentation link from manifest metadata."""
+
+        return cls(
+            label=label,
+            path=attachment.path,
+            category=category,
+            color_token=color_token,
+            media_type=attachment.media_type,
+            badge=badge,
+        )
+
+
+@dataclass(frozen=True)
+class MissionQuickLinks:
+    """Attachment groupings surfaced as quick links."""
+
+    sop: tuple[MissionAttachmentLink, ...] = field(default_factory=tuple)
+    maps: tuple[MissionAttachmentLink, ...] = field(default_factory=tuple)
+    comms: tuple[MissionAttachmentLink, ...] = field(default_factory=tuple)
+
+    def all_links(self) -> tuple[MissionAttachmentLink, ...]:
+        """Return all quick-link attachments for convenience."""
+
+        return self.sop + self.maps + self.comms
+
+
+@dataclass(frozen=True)
+class MissionBriefing:
+    """Normalized mission metadata for the GUI workspace."""
+
+    mission_id: str
+    name: str
+    version: str
+    summary: str | None
+    classification: str | None
+    created_at: datetime
+    updated_at: datetime | None
+    tags: tuple[str, ...]
+    contacts: tuple[MissionContactCard, ...]
+    quick_links: MissionQuickLinks
+    attachments: tuple[MissionAttachmentLink, ...]
+
+    @classmethod
+    def from_manifest(
+        cls,
+        manifest: MissionManifest,
+        *,
+        quick_links: MissionQuickLinks,
+        attachments: tuple[MissionAttachmentLink, ...],
+    ) -> "MissionBriefing":
+        """Construct a briefing summary from a manifest."""
+
+        return cls(
+            mission_id=manifest.mission_id,
+            name=manifest.name,
+            version=manifest.version,
+            summary=manifest.summary,
+            classification=manifest.classification,
+            created_at=manifest.created_at,
+            updated_at=manifest.updated_at,
+            tags=manifest.tags,
+            contacts=tuple(MissionContactCard.from_manifest(contact) for contact in manifest.contacts),
+            quick_links=quick_links,
+            attachments=attachments,
+        )
+
+
+@dataclass(frozen=True)
+class MissionWorkspaceState:
+    """Mission intake workspace state for the GUI."""
+
+    status: str
+    headline: str
+    mission: MissionBriefing | None
+    package_path: str | None
+    staging_directory: str | None
+    cache_directory: str | None
+    extracted_file_count: int | None
+
+    def with_updates(self, **updates: Any) -> "MissionWorkspaceState":
+        """Return a modified copy with ``updates`` applied."""
+
+        return replace(self, **updates)
+
+
+def empty_mission_workspace() -> MissionWorkspaceState:
+    """Return an empty mission workspace state for initialization."""
+
+    return MissionWorkspaceState(
+        status="idle",
+        headline="Awaiting mission package",
+        mission=None,
+        package_path=None,
+        staging_directory=None,
+        cache_directory=None,
+        extracted_file_count=None,
+    )
 
