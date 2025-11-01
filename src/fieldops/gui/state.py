@@ -145,6 +145,7 @@ class FieldOpsGUIState:
     conflict_prompts: tuple[ConflictPrompt, ...]
     mesh: MeshTopology
     mission_workspace: "MissionWorkspaceState"
+    operational_log_form: "OperationalLogFormState"
 
     def with_updates(self, **updates: Any) -> "FieldOpsGUIState":
         """Return a modified copy with ``updates`` applied."""
@@ -299,5 +300,141 @@ def empty_mission_workspace() -> MissionWorkspaceState:
         staging_directory=None,
         cache_directory=None,
         extracted_file_count=None,
+    )
+
+
+@dataclass(frozen=True)
+class GPSFix:
+    """Structured GPS metadata captured alongside operational logs."""
+
+    latitude: float
+    longitude: float
+    altitude_m: float | None = None
+    horizontal_accuracy_m: float | None = None
+    vertical_accuracy_m: float | None = None
+    captured_at: datetime | None = None
+
+    def to_payload(self) -> dict[str, Any]:
+        """Return a JSON-friendly payload describing the GPS fix."""
+
+        payload: dict[str, Any] = {
+            "lat": self.latitude,
+            "lon": self.longitude,
+        }
+        if self.altitude_m is not None:
+            payload["alt_m"] = self.altitude_m
+        if self.horizontal_accuracy_m is not None:
+            payload["h_acc_m"] = self.horizontal_accuracy_m
+        if self.vertical_accuracy_m is not None:
+            payload["v_acc_m"] = self.vertical_accuracy_m
+        if self.captured_at is not None:
+            payload["captured_at"] = self.captured_at.isoformat()
+        return payload
+
+
+@dataclass(frozen=True)
+class PhotoAttachmentDraft:
+    """Photo attachment metadata for operational log submissions."""
+
+    path: str
+    caption: str | None = None
+    captured_at: datetime | None = None
+    media_type: str | None = None
+    size_bytes: int | None = None
+    checksum: str | None = None
+    thumbnail_path: str | None = None
+
+    def to_payload(self) -> dict[str, Any]:
+        """Serialize the attachment draft for queuing."""
+
+        payload: dict[str, Any] = {"path": self.path}
+        if self.caption:
+            payload["caption"] = self.caption
+        if self.captured_at is not None:
+            payload["captured_at"] = self.captured_at.isoformat()
+        if self.media_type:
+            payload["media_type"] = self.media_type
+        if self.size_bytes is not None:
+            payload["size_bytes"] = self.size_bytes
+        if self.checksum:
+            payload["checksum"] = self.checksum
+        if self.thumbnail_path:
+            payload["thumbnail_path"] = self.thumbnail_path
+        return payload
+
+
+@dataclass(frozen=True)
+class OperationalLogDraft:
+    """Form submission payload for operational logging."""
+
+    category: str
+    title: str
+    notes: str
+    gps_fix: GPSFix | None = None
+    attachments: tuple[PhotoAttachmentDraft, ...] = field(default_factory=tuple)
+    tags: tuple[str, ...] = field(default_factory=tuple)
+    urgency: str = "routine"
+    status: str = "open"
+
+    def to_operation_payload(self) -> dict[str, Any]:
+        """Convert the draft into an operation payload."""
+
+        payload: dict[str, Any] = {
+            "category": self.category,
+            "title": self.title,
+            "notes": self.notes,
+            "urgency": self.urgency,
+            "status": self.status,
+            "tags": list(self.tags),
+        }
+        if self.gps_fix is not None:
+            payload["gps"] = self.gps_fix.to_payload()
+        if self.attachments:
+            payload["attachments"] = [attachment.to_payload() for attachment in self.attachments]
+        else:
+            payload["attachments"] = []
+        return payload
+
+
+@dataclass(frozen=True)
+class OperationalLogFormState:
+    """UI state for the operational logging form."""
+
+    categories: tuple[str, ...]
+    selected_category: str
+    backlog_count: int
+    banner_message: str
+    banner_token: str
+    last_submission_id: str | None = None
+
+    def with_backlog(self, backlog_count: int) -> "OperationalLogFormState":
+        """Update the form with the latest backlog count and banner."""
+
+        if backlog_count:
+            message = f"{backlog_count} field log{'s' if backlog_count != 1 else ''} awaiting sync"
+            token = "accent"
+        else:
+            message = "No pending field logs"
+            token = "success"
+        return replace(self, backlog_count=backlog_count, banner_message=message, banner_token=token)
+
+    def with_submission(self, operation_id: str, backlog_count: int) -> "OperationalLogFormState":
+        """Return a form state reflecting a newly queued submission."""
+
+        updated = self.with_backlog(backlog_count)
+        return replace(updated, last_submission_id=operation_id, selected_category=self.selected_category)
+
+
+def default_operational_log_form() -> OperationalLogFormState:
+    """Provide the default operational logging form configuration."""
+
+    categories = ("SITREP", "CONTACT", "INCIDENT", "INTEL")
+    return OperationalLogFormState(
+        categories=categories,
+        selected_category=categories[0],
+        backlog_count=0,
+        banner_message="No pending field logs",
+        banner_token="success",
+        last_submission_id=None,
     )
 

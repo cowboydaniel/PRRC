@@ -5,7 +5,14 @@ from pathlib import Path
 
 import pytest
 
-from fieldops import MissionAttachment, MissionContact, MissionManifest
+from fieldops import (
+    GPSFix,
+    MissionAttachment,
+    MissionContact,
+    MissionManifest,
+    OperationalLogDraft,
+    PhotoAttachmentDraft,
+)
 from fieldops.gui import (
     ConflictPrompt,
     FieldOpsGUIController,
@@ -109,6 +116,72 @@ def test_attempt_sync_surfaces_conflicts(cache_path: Path) -> None:
     assert sync_state.conflict_count == 1
     assert controller.get_state().conflict_prompts == (conflict,)
     assert len(controller.get_state().offline_queue) == 1
+
+
+def test_submit_operational_log_tracks_gps_and_attachments(cache_path: Path) -> None:
+    adapter = DummySyncAdapter(available=False)
+    clock = fixed_clock(datetime(2024, 1, 1, tzinfo=timezone.utc))
+    controller = FieldOpsGUIController(cache_path, adapter, clock=clock)
+
+    gps_fix = GPSFix(
+        latitude=34.05,
+        longitude=-117.29,
+        altitude_m=512.0,
+        horizontal_accuracy_m=4.2,
+        captured_at=clock(),
+    )
+    attachment = PhotoAttachmentDraft(
+        path="/tmp/evidence.jpg",
+        caption="Perimeter breach",
+        captured_at=clock(),
+        media_type="image/jpeg",
+        size_bytes=2_048,
+    )
+    draft = OperationalLogDraft(
+        category="INCIDENT",
+        title="Breach at east gate",
+        notes="Unauthorized vehicle forced entry. Patrol dispatched.",
+        gps_fix=gps_fix,
+        attachments=(attachment,),
+        tags=("perimeter", "alert"),
+        urgency="priority",
+        status="open",
+    )
+
+    operation = controller.submit_operational_log(draft)
+
+    assert operation.operation_type == "operational-log"
+    payload = operation.payload
+    assert payload["gps"]["lat"] == pytest.approx(34.05)
+    assert payload["gps"]["alt_m"] == pytest.approx(512.0)
+    assert payload["attachments"][0]["path"] == "/tmp/evidence.jpg"
+    state = controller.get_state()
+    assert state.operational_log_form.last_submission_id == operation.operation_id
+    assert state.operational_log_form.backlog_count == len(state.offline_queue)
+    assert "awaiting" in state.operational_log_form.banner_message.lower()
+
+
+def test_sync_clears_logging_form_backlog(cache_path: Path) -> None:
+    adapter = DummySyncAdapter(available=True)
+    clock = fixed_clock(datetime(2024, 1, 1, tzinfo=timezone.utc))
+    controller = FieldOpsGUIController(cache_path, adapter, clock=clock)
+
+    draft = OperationalLogDraft(
+        category="SITREP",
+        title="Patrol complete",
+        notes="Sector sweep complete. No anomalies detected.",
+    )
+
+    operation = controller.submit_operational_log(draft)
+    adapter.results.append(
+        SyncResult(applied_operation_ids=(operation.operation_id,), conflicts=(), errors=())
+    )
+
+    controller.attempt_sync()
+
+    form_state = controller.get_state().operational_log_form
+    assert form_state.backlog_count == 0
+    assert "no pending" in form_state.banner_message.lower()
 
 
 def test_conflict_resolution_updates_queue(cache_path: Path) -> None:

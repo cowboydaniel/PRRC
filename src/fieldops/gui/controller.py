@@ -16,9 +16,12 @@ from .state import (
     MeshHealth,
     MeshLink,
     MeshTopology,
+    OperationalLogDraft,
+    OperationalLogFormState,
     OfflineOperation,
     SyncResult,
     SyncState,
+    default_operational_log_form,
     empty_mission_workspace,
 )
 from ..mission_loader import MissionAttachment, MissionManifest, load_mission_package
@@ -63,12 +66,30 @@ class FieldOpsGUIController:
             conflict_prompts=(),
             mesh=MeshTopology(links=(), mesh_health="unknown", last_updated=None, mesh_summary="Mesh scan pending"),
             mission_workspace=empty_mission_workspace(),
+            operational_log_form=self._initial_log_form_state(),
         )
 
     def get_state(self) -> FieldOpsGUIState:
         """Return the current GUI state."""
 
         return self._state
+
+    def prepare_log_form(self) -> OperationalLogFormState:
+        """Return the current operational log form state for rendering."""
+
+        return self._state.operational_log_form
+
+    def submit_operational_log(self, draft: OperationalLogDraft) -> OfflineOperation:
+        """Queue a completed operational log form for synchronization."""
+
+        operation = self.queue_operation("operational-log", draft.to_operation_payload())
+        self._state = self._state.with_updates(
+            operational_log_form=self._state.operational_log_form.with_submission(
+                operation.operation_id,
+                len(self._queue),
+            )
+        )
+        return operation
 
     def queue_operation(self, operation_type: str, payload: dict) -> OfflineOperation:
         """Queue an operation for later synchronization."""
@@ -245,6 +266,7 @@ class FieldOpsGUIController:
             conflict_count=len(conflicts),
         )
         self._state = self._state.with_updates(sync=sync_state)
+        self._update_logging_form_backlog()
         return sync_state
 
     def _persist_queue(self) -> None:
@@ -253,12 +275,19 @@ class FieldOpsGUIController:
     def _update_state_after_queue(self) -> None:
         self._refresh_sync_metadata()
         self._state = self._state.with_updates(offline_queue=tuple(self._queue))
+        self._update_logging_form_backlog()
 
     def _refresh_sync_metadata(self) -> None:
+        sync = self._state.sync
+        pending = len(self._queue)
+        message = sync.message
+        if sync.mode in {"idle", "offline"}:
+            message = self._format_backlog_message(pending, sync.mode)
         self._state = self._state.with_updates(
-            sync=self._state.sync.with_updates(
-                pending_operations=len(self._queue),
+            sync=sync.with_updates(
+                pending_operations=pending,
                 conflict_count=len(self._state.conflict_prompts),
+                message=message,
             )
         )
 
@@ -338,4 +367,19 @@ class FieldOpsGUIController:
         if suffix:
             return suffix.lstrip(".").upper()
         return None
+
+    def _initial_log_form_state(self) -> OperationalLogFormState:
+        form = default_operational_log_form()
+        return form.with_backlog(len(self._queue))
+
+    def _update_logging_form_backlog(self) -> None:
+        form = self._state.operational_log_form.with_backlog(len(self._queue))
+        self._state = self._state.with_updates(operational_log_form=form)
+
+    def _format_backlog_message(self, pending: int, mode: str) -> str:
+        if pending:
+            return f"{pending} field update{'s' if pending != 1 else ''} queued for sync"
+        if mode == "offline":
+            return "Awaiting mesh uplink"
+        return "Ready for mission intake"
 

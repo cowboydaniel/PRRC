@@ -22,7 +22,7 @@
 ## Phase 3 – FieldOps GUI Foundation
 - [x] Deliver an offline-first FieldOps GUI optimized for Dell Rugged hardware with clear sync status, conflict resolution prompts, mesh networking awareness, and visual styling that follows `docs/fieldops_gui_style.md`.
 - [x] Implement mission intake and briefing flows that surface package metadata once `load_mission_package` verifies archives, with quick links to SOPs, maps, and communications.
-- [ ] Build operational logging forms supporting GPS tagging, photo attachments, offline queueing, and status banners displaying sync and backlog counts.
+- [x] Build operational logging forms supporting GPS tagging, photo attachments, offline queueing, and status banners displaying sync and backlog counts.
 - [ ] Introduce resource request and task dashboards that allow accepting, deferring, and escalating assignments while offline with merges on reconnection.
 - [ ] Surface telemetry snapshots from `collect_telemetry_snapshot` through card-based metrics that degrade gracefully when collectors are stubbed.
 - [ ] Provide settings and hardware tools for calibration workflows (`plan_touchscreen_calibration`) and serial diagnostics (`enumerate_serial_interfaces`).
