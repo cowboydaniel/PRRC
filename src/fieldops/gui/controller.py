@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterable, Mapping, Protocol, Sequence
 
+_SUPPORTED_ACTIONS = {"accept", "defer", "escalate"}
+
 from .offline_cache import OfflineQueueStorage
 from .state import (
     ConflictPrompt,
@@ -19,10 +21,16 @@ from .state import (
     OperationalLogDraft,
     OperationalLogFormState,
     OfflineOperation,
+    ResourceRequestBoardState,
+    ResourceRequestCard,
     SyncResult,
     SyncState,
+    TaskAssignmentCard,
+    TaskDashboardState,
     default_operational_log_form,
     empty_mission_workspace,
+    empty_resource_board,
+    empty_task_dashboard,
 )
 from ..mission_loader import MissionAttachment, MissionManifest, load_mission_package
 
@@ -67,7 +75,13 @@ class FieldOpsGUIController:
             mesh=MeshTopology(links=(), mesh_health="unknown", last_updated=None, mesh_summary="Mesh scan pending"),
             mission_workspace=empty_mission_workspace(),
             operational_log_form=self._initial_log_form_state(),
+            task_dashboard=empty_task_dashboard(),
+            resource_requests=empty_resource_board(),
         )
+        self._task_baseline: dict[str, TaskAssignmentCard] = {}
+        self._pending_task_actions: dict[str, str] = {}
+        self._resource_baseline: dict[str, ResourceRequestCard] = {}
+        self._pending_resource_actions: dict[str, str] = {}
 
     def get_state(self) -> FieldOpsGUIState:
         """Return the current GUI state."""
@@ -105,6 +119,64 @@ class FieldOpsGUIController:
         self._update_state_after_queue()
         return operation
 
+    def update_task_assignments(
+        self, assignments: Iterable[TaskAssignmentCard]
+    ) -> TaskDashboardState:
+        """Refresh the task dashboard with the latest assignments."""
+
+        self._task_baseline = {
+            assignment.task_id: assignment.with_offline_action(None)
+            for assignment in assignments
+        }
+        return self._compose_task_dashboard(timestamp=self._clock())
+
+    def update_resource_requests(
+        self, requests: Iterable[ResourceRequestCard]
+    ) -> ResourceRequestBoardState:
+        """Refresh the resource request board with the latest snapshot."""
+
+        self._resource_baseline = {
+            request.request_id: request.with_offline_action(None)
+            for request in requests
+        }
+        return self._compose_resource_board(timestamp=self._clock())
+
+    def apply_task_action(
+        self, task_id: str, action: str, *, notes: str | None = None
+    ) -> OfflineOperation:
+        """Apply a local action to a task assignment."""
+
+        payload: dict[str, object] = {"task_id": task_id, "action": action}
+        if notes:
+            payload["notes"] = notes
+        if action not in _SUPPORTED_ACTIONS:
+            raise ValueError(f"Unsupported task action: {action}")
+        if task_id not in self._task_baseline:
+            placeholder = TaskAssignmentCard.offline_placeholder(task_id, action, self._clock())
+            self._task_baseline[task_id] = placeholder.with_offline_action(None)
+        operation = self.queue_operation("task-action", payload)
+        self._pending_task_actions[task_id] = action
+        self._compose_task_dashboard()
+        return operation
+
+    def apply_resource_request_action(
+        self, request_id: str, action: str, *, notes: str | None = None
+    ) -> OfflineOperation:
+        """Apply a local action to a resource request."""
+
+        payload: dict[str, object] = {"request_id": request_id, "action": action}
+        if notes:
+            payload["notes"] = notes
+        if action not in _SUPPORTED_ACTIONS:
+            raise ValueError(f"Unsupported resource request action: {action}")
+        if request_id not in self._resource_baseline:
+            placeholder = ResourceRequestCard.offline_placeholder(request_id, action, self._clock())
+            self._resource_baseline[request_id] = placeholder.with_offline_action(None)
+        operation = self.queue_operation("resource-request-action", payload)
+        self._pending_resource_actions[request_id] = action
+        self._compose_resource_board()
+        return operation
+
     def attempt_sync(self) -> SyncState:
         """Attempt to synchronize the offline queue with HQ."""
 
@@ -126,14 +198,17 @@ class FieldOpsGUIController:
             message="Syncing queued field updates",
             conflicts=self._state.conflict_prompts,
         )
+        operations_by_id = {operation.operation_id: operation for operation in self._queue}
         result = self._adapter.push_operations(tuple(self._queue))
         applied_ids = set(result.applied_operation_ids)
         if applied_ids:
+            applied_operations = [operations_by_id[op_id] for op_id in applied_ids if op_id in operations_by_id]
             self._queue = [operation for operation in self._queue if operation.operation_id not in applied_ids]
             if self._queue:
                 self._persist_queue()
             else:
                 self._storage.clear()
+            self._clear_offline_action_flags(applied_operations)
         conflicts = result.conflicts
         self._state = self._state.with_updates(
             conflict_prompts=conflicts,
@@ -382,4 +457,67 @@ class FieldOpsGUIController:
         if mode == "offline":
             return "Awaiting mesh uplink"
         return "Ready for mission intake"
+
+    def _compose_task_dashboard(self, *, timestamp: datetime | None = None) -> TaskDashboardState:
+        assignments: list[TaskAssignmentCard] = []
+        for task_id, card in self._task_baseline.items():
+            action = self._pending_task_actions.get(task_id)
+            assignments.append(card.with_offline_action(action))
+        for task_id, action in self._pending_task_actions.items():
+            if task_id not in self._task_baseline:
+                assignments.append(TaskAssignmentCard.offline_placeholder(task_id, action, self._clock()))
+        dashboard = TaskDashboardState.compose(
+            assignments,
+            pending_actions=len(self._pending_task_actions),
+            timestamp=timestamp or self._clock(),
+        )
+        self._state = self._state.with_updates(task_dashboard=dashboard)
+        return dashboard
+
+    def _compose_resource_board(self, *, timestamp: datetime | None = None) -> ResourceRequestBoardState:
+        requests: list[ResourceRequestCard] = []
+        for request_id, card in self._resource_baseline.items():
+            action = self._pending_resource_actions.get(request_id)
+            requests.append(card.with_offline_action(action))
+        for request_id, action in self._pending_resource_actions.items():
+            if request_id not in self._resource_baseline:
+                requests.append(ResourceRequestCard.offline_placeholder(request_id, action, self._clock()))
+        board = ResourceRequestBoardState.compose(
+            requests,
+            pending_actions=len(self._pending_resource_actions),
+            timestamp=timestamp or self._clock(),
+        )
+        self._state = self._state.with_updates(resource_requests=board)
+        return board
+
+    def _clear_offline_action_flags(self, applied_operations: Sequence[OfflineOperation]) -> None:
+        task_updated = False
+        request_updated = False
+        for operation in applied_operations:
+            if operation.operation_type == "task-action":
+                task_id = str(operation.payload.get("task_id"))
+                action = str(operation.payload.get("action"))
+                if task_id in self._pending_task_actions:
+                    self._pending_task_actions.pop(task_id, None)
+                    task_updated = True
+                if task_id not in self._task_baseline:
+                    placeholder = TaskAssignmentCard.offline_placeholder(task_id, action, self._clock())
+                    self._task_baseline[task_id] = placeholder.with_offline_action(None)
+                self._task_baseline[task_id] = self._task_baseline[task_id].with_merged_action(action)
+                task_updated = True
+            elif operation.operation_type == "resource-request-action":
+                request_id = str(operation.payload.get("request_id"))
+                action = str(operation.payload.get("action"))
+                if request_id in self._pending_resource_actions:
+                    self._pending_resource_actions.pop(request_id, None)
+                    request_updated = True
+                if request_id not in self._resource_baseline:
+                    placeholder = ResourceRequestCard.offline_placeholder(request_id, action, self._clock())
+                    self._resource_baseline[request_id] = placeholder.with_offline_action(None)
+                self._resource_baseline[request_id] = self._resource_baseline[request_id].with_merged_action(action)
+                request_updated = True
+        if task_updated:
+            self._compose_task_dashboard(timestamp=self._clock())
+        if request_updated:
+            self._compose_resource_board(timestamp=self._clock())
 

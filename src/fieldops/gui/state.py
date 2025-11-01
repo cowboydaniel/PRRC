@@ -146,6 +146,8 @@ class FieldOpsGUIState:
     mesh: MeshTopology
     mission_workspace: "MissionWorkspaceState"
     operational_log_form: "OperationalLogFormState"
+    task_dashboard: "TaskDashboardState"
+    resource_requests: "ResourceRequestBoardState"
 
     def with_updates(self, **updates: Any) -> "FieldOpsGUIState":
         """Return a modified copy with ``updates`` applied."""
@@ -301,6 +303,298 @@ def empty_mission_workspace() -> MissionWorkspaceState:
         cache_directory=None,
         extracted_file_count=None,
     )
+
+
+ACTION_TO_STATUS = {
+    "accept": "accepted",
+    "defer": "deferred",
+    "escalate": "escalated",
+}
+
+
+def _priority_token(priority: str) -> str:
+    normalized = priority.lower()
+    if normalized in {"critical", "emergency", "immediate"}:
+        return "danger"
+    if normalized in {"high", "priority"}:
+        return "accent"
+    if normalized in {"routine", "low"}:
+        return "success"
+    return "neutral_700"
+
+
+def _priority_sort_index(token: str) -> int:
+    order = {"danger": 0, "accent": 1, "success": 2}
+    return order.get(token, 3)
+
+
+@dataclass(frozen=True)
+class TaskAssignmentCard:
+    """Card metadata surfaced in the task dashboard."""
+
+    task_id: str
+    title: str
+    status: str
+    priority: str
+    display_status: str
+    summary: str | None = None
+    assignee: str | None = None
+    due_at: datetime | None = None
+    tags: tuple[str, ...] = field(default_factory=tuple)
+    location: str | None = None
+    offline_action: str | None = None
+
+    def with_offline_action(self, action: str | None) -> "TaskAssignmentCard":
+        """Return a card highlighting an offline intent."""
+
+        if not action:
+            return replace(self, offline_action=None, display_status=self.status)
+        status = ACTION_TO_STATUS.get(action, self.display_status)
+        return replace(self, offline_action=action, display_status=status)
+
+    def with_merged_action(self, action: str) -> "TaskAssignmentCard":
+        """Return a card that reflects a merged action."""
+
+        status = ACTION_TO_STATUS.get(action, self.status)
+        return replace(self, status=status, display_status=status, offline_action=None)
+
+    @property
+    def priority_color_token(self) -> str:
+        """Return the color token representing the task priority."""
+
+        return _priority_token(self.priority)
+
+    @classmethod
+    def offline_placeholder(cls, task_id: str, action: str, timestamp: datetime) -> "TaskAssignmentCard":
+        """Build a placeholder card when a task snapshot is unavailable."""
+
+        status = ACTION_TO_STATUS.get(action, "pending")
+        headline = f"Offline {action} pending"
+        summary = "Awaiting HQ merge for task update"
+        return cls(
+            task_id=task_id,
+            title=headline,
+            status=status,
+            display_status=status,
+            priority="priority",
+            summary=summary,
+            due_at=timestamp,
+            offline_action=action,
+        )
+
+
+@dataclass(frozen=True)
+class TaskColumnState:
+    """Column metadata for the task dashboard."""
+
+    column_id: str
+    title: str
+    header_token: str
+    tasks: tuple[TaskAssignmentCard, ...]
+
+
+@dataclass(frozen=True)
+class TaskDashboardState:
+    """Structured dashboard data for task management."""
+
+    columns: tuple[TaskColumnState, ...]
+    pending_local_actions: int
+    last_refreshed_at: datetime | None
+    offline_badge_token: str
+    offline_badge_message: str
+
+    @classmethod
+    def compose(
+        cls,
+        assignments: Sequence[TaskAssignmentCard],
+        *,
+        pending_actions: int,
+        timestamp: datetime | None,
+    ) -> "TaskDashboardState":
+        """Build a dashboard view from assignments."""
+
+        columns: dict[str, list[TaskAssignmentCard]] = {
+            "pending": [],
+            "accepted": [],
+            "deferred": [],
+            "escalated": [],
+        }
+        for assignment in assignments:
+            bucket = assignment.display_status.lower()
+            column_id = bucket if bucket in columns else "pending"
+            columns[column_id].append(assignment)
+
+        def _sorted(cards: list[TaskAssignmentCard]) -> tuple[TaskAssignmentCard, ...]:
+            return tuple(
+                sorted(
+                    cards,
+                    key=lambda card: (
+                        card.offline_action is None,
+                        _priority_sort_index(card.priority_color_token),
+                        card.due_at or datetime.max,
+                        card.title,
+                    ),
+                )
+            )
+
+        ordered_columns = (
+            TaskColumnState(
+                column_id="pending",
+                title="Pending",
+                header_token="secondary",
+                tasks=_sorted(columns["pending"]),
+            ),
+            TaskColumnState(
+                column_id="accepted",
+                title="Accepted",
+                header_token="secondary",
+                tasks=_sorted(columns["accepted"]),
+            ),
+            TaskColumnState(
+                column_id="deferred",
+                title="Deferred",
+                header_token="secondary",
+                tasks=_sorted(columns["deferred"]),
+            ),
+            TaskColumnState(
+                column_id="escalated",
+                title="Escalated",
+                header_token="secondary",
+                tasks=_sorted(columns["escalated"]),
+            ),
+        )
+
+        if pending_actions:
+            badge_token = "accent"
+            badge_message = f"{pending_actions} task update{'s' if pending_actions != 1 else ''} awaiting HQ merge"
+        else:
+            badge_token = "success"
+            badge_message = "Task board synced"
+        return cls(
+            columns=ordered_columns,
+            pending_local_actions=pending_actions,
+            last_refreshed_at=timestamp,
+            offline_badge_token=badge_token,
+            offline_badge_message=badge_message,
+        )
+
+
+@dataclass(frozen=True)
+class ResourceRequestCard:
+    """Resource request metadata for the FieldOps board."""
+
+    request_id: str
+    requester: str
+    summary: str
+    priority: str
+    status: str
+    display_status: str
+    quantity: int | None = None
+    needed_at: datetime | None = None
+    location: str | None = None
+    tags: tuple[str, ...] = field(default_factory=tuple)
+    offline_action: str | None = None
+
+    def with_offline_action(self, action: str | None) -> "ResourceRequestCard":
+        """Return a card that reflects an offline action."""
+
+        if not action:
+            return replace(self, offline_action=None, display_status=self.status)
+        status = ACTION_TO_STATUS.get(action, self.display_status)
+        return replace(self, offline_action=action, display_status=status)
+
+    def with_merged_action(self, action: str) -> "ResourceRequestCard":
+        """Return a card after a merged action is applied."""
+
+        status = ACTION_TO_STATUS.get(action, self.status)
+        return replace(self, status=status, display_status=status, offline_action=None)
+
+    @property
+    def priority_color_token(self) -> str:
+        """Return the color token describing request priority."""
+
+        return _priority_token(self.priority)
+
+    @classmethod
+    def offline_placeholder(
+        cls, request_id: str, action: str, timestamp: datetime
+    ) -> "ResourceRequestCard":
+        """Create a placeholder card when a request snapshot is missing."""
+
+        status = ACTION_TO_STATUS.get(action, "pending")
+        return cls(
+            request_id=request_id,
+            requester="Offline",
+            summary=f"Offline {action} pending",
+            priority="priority",
+            status=status,
+            display_status=status,
+            needed_at=timestamp,
+            offline_action=action,
+        )
+
+
+@dataclass(frozen=True)
+class ResourceRequestBoardState:
+    """Board summary for resource requests."""
+
+    requests: tuple[ResourceRequestCard, ...]
+    pending_local_actions: int
+    headline: str
+    last_refreshed_at: datetime | None
+    offline_badge_token: str
+    offline_badge_message: str
+
+    @classmethod
+    def compose(
+        cls,
+        requests: Sequence[ResourceRequestCard],
+        *,
+        pending_actions: int,
+        timestamp: datetime | None,
+    ) -> "ResourceRequestBoardState":
+        """Build a board view from resource requests."""
+
+        ordered = tuple(
+            sorted(
+                requests,
+                key=lambda card: (
+                    card.offline_action is None,
+                    _priority_sort_index(card.priority_color_token),
+                    card.needed_at or datetime.max,
+                    card.summary,
+                ),
+            )
+        )
+        if pending_actions:
+            badge_token = "accent"
+            badge_message = (
+                f"{pending_actions} resource update{'s' if pending_actions != 1 else ''} awaiting HQ merge"
+            )
+        else:
+            badge_token = "success"
+            badge_message = "Resource board synced"
+        headline = "Resource Requests"
+        return cls(
+            requests=ordered,
+            pending_local_actions=pending_actions,
+            headline=headline,
+            last_refreshed_at=timestamp,
+            offline_badge_token=badge_token,
+            offline_badge_message=badge_message,
+        )
+
+
+def empty_task_dashboard() -> TaskDashboardState:
+    """Return an empty task dashboard."""
+
+    return TaskDashboardState.compose((), pending_actions=0, timestamp=None)
+
+
+def empty_resource_board() -> ResourceRequestBoardState:
+    """Return an empty resource request board."""
+
+    return ResourceRequestBoardState.compose((), pending_actions=0, timestamp=None)
 
 
 @dataclass(frozen=True)

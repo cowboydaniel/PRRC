@@ -17,7 +17,9 @@ from fieldops.gui import (
     ConflictPrompt,
     FieldOpsGUIController,
     MeshLink,
+    ResourceRequestCard,
     SyncResult,
+    TaskAssignmentCard,
 )
 
 
@@ -324,4 +326,92 @@ def test_ingest_mission_package_without_manifest(cache_path: Path) -> None:
     assert workspace.status == "staged"
     assert workspace.mission is None
     assert "manifest" in workspace.headline.lower()
+
+
+def test_task_dashboard_offline_actions_merge(cache_path: Path) -> None:
+    adapter = DummySyncAdapter(available=True)
+    clock = fixed_clock(datetime(2024, 1, 1, tzinfo=timezone.utc))
+    controller = FieldOpsGUIController(cache_path, adapter, clock=clock)
+
+    assignments = (
+        TaskAssignmentCard(
+            task_id="TASK-1",
+            title="Establish perimeter",
+            status="pending",
+            display_status="pending",
+            priority="critical",
+            summary="Secure the outer perimeter.",
+            due_at=clock(),
+        ),
+        TaskAssignmentCard(
+            task_id="TASK-2",
+            title="Stage medevac",
+            status="pending",
+            display_status="pending",
+            priority="priority",
+            summary="Prep medevac team for launch.",
+        ),
+    )
+
+    dashboard = controller.update_task_assignments(assignments)
+
+    assert dashboard.columns[0].tasks[0].priority_color_token == "danger"
+    operation = controller.apply_task_action("TASK-1", "accept", notes="Bravo team")
+
+    state = controller.get_state().task_dashboard
+    assert state.pending_local_actions == 1
+    assert state.offline_badge_token == "accent"
+    accepted_column = next(column for column in state.columns if column.column_id == "accepted")
+    assert accepted_column.tasks[0].offline_action == "accept"
+
+    adapter.results.append(
+        SyncResult(applied_operation_ids=(operation.operation_id,), conflicts=(), errors=())
+    )
+    controller.attempt_sync()
+
+    state = controller.get_state().task_dashboard
+    assert state.pending_local_actions == 0
+    assert state.offline_badge_token == "success"
+    accepted_column = next(column for column in state.columns if column.column_id == "accepted")
+    assert accepted_column.tasks[0].display_status == "accepted"
+    assert accepted_column.tasks[0].offline_action is None
+
+
+def test_resource_request_actions_merge(cache_path: Path) -> None:
+    adapter = DummySyncAdapter(available=True)
+    clock = fixed_clock(datetime(2024, 1, 1, tzinfo=timezone.utc))
+    controller = FieldOpsGUIController(cache_path, adapter, clock=clock)
+
+    requests = (
+        ResourceRequestCard(
+            request_id="REQ-7",
+            requester="Alpha Company",
+            summary="Resupply fuel drums",
+            priority="high",
+            status="pending",
+            display_status="pending",
+            quantity=6,
+        ),
+    )
+
+    board = controller.update_resource_requests(requests)
+
+    assert board.requests[0].priority_color_token == "accent"
+    operation = controller.apply_resource_request_action("REQ-7", "escalate")
+
+    state = controller.get_state().resource_requests
+    assert state.pending_local_actions == 1
+    assert state.offline_badge_token == "accent"
+    assert state.requests[0].offline_action == "escalate"
+
+    adapter.results.append(
+        SyncResult(applied_operation_ids=(operation.operation_id,), conflicts=(), errors=())
+    )
+    controller.attempt_sync()
+
+    state = controller.get_state().resource_requests
+    assert state.pending_local_actions == 0
+    assert state.offline_badge_token == "success"
+    assert state.requests[0].display_status == "escalated"
+    assert state.requests[0].offline_action is None
 
