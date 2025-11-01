@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from fieldops import MissionAttachment, MissionContact, MissionManifest
 from fieldops.gui import (
     ConflictPrompt,
     FieldOpsGUIController,
@@ -170,4 +171,84 @@ def test_mesh_topology_updates_status(cache_path: Path) -> None:
     assert topology.mesh_health == "excellent"
     assert "2 peers" in topology.mesh_summary
     assert controller.get_state().mesh.mesh_summary == topology.mesh_summary
+
+
+def test_ingest_mission_package_updates_workspace(cache_path: Path) -> None:
+    adapter = DummySyncAdapter(available=True)
+    clock = fixed_clock(datetime(2024, 1, 1, tzinfo=timezone.utc))
+    manifest = MissionManifest(
+        mission_id="BRAVO-7",
+        name="Bravo Recon",
+        version="1.2",
+        summary="Reconnaissance sweep across sector Bravo.",
+        created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        updated_at=datetime(2024, 1, 2, tzinfo=timezone.utc),
+        classification="SECRET",
+        tags=("recon", "night"),
+        contacts=(
+            MissionContact(role="S3", name="Capt. Adams", callsign="Steel 3", channel="Encrypted"),
+        ),
+        attachments=(
+            MissionAttachment(name="Bravo SOP", path="docs/bravo_sop.pdf", media_type="application/pdf"),
+            MissionAttachment(name="Sector Map", path="maps/sector_bravo.png", media_type="image/png"),
+            MissionAttachment(name="Comms Plan", path="comms/plan.txt", media_type="text/plain"),
+            MissionAttachment(name="Logistics Notes", path="intel/log_notes.docx", media_type="application/vnd.openxmlformats"),
+        ),
+        source_path=cache_path,
+    )
+
+    package_summary = {
+        "package_path": "packages/bravo.pkg",
+        "staging_directory": "staging/bravo",
+        "cache_directory": "cache/bravo",
+        "extracted_file_count": 12,
+        "manifest": manifest,
+    }
+
+    def mission_loader(path: Path) -> dict[str, object]:
+        assert path == Path("/missions/bravo.pkg")
+        return package_summary
+
+    controller = FieldOpsGUIController(
+        cache_path,
+        adapter,
+        clock=clock,
+        mission_loader=mission_loader,
+    )
+
+    workspace = controller.ingest_mission_package(Path("/missions/bravo.pkg"))
+
+    assert workspace.status == "ready"
+    assert workspace.mission is not None
+    assert workspace.mission.mission_id == "BRAVO-7"
+    assert workspace.mission.quick_links.sop and workspace.mission.quick_links.sop[0].color_token == "primary"
+    assert workspace.mission.quick_links.maps and workspace.mission.quick_links.maps[0].color_token == "secondary"
+    assert workspace.mission.quick_links.comms and workspace.mission.quick_links.comms[0].color_token == "accent"
+    assert any(link.category == "attachment" for link in workspace.mission.attachments)
+    assert controller.get_state().mission_workspace == workspace
+
+
+def test_ingest_mission_package_without_manifest(cache_path: Path) -> None:
+    adapter = DummySyncAdapter(available=True)
+    clock = fixed_clock(datetime(2024, 1, 1, tzinfo=timezone.utc))
+    package_summary = {
+        "package_path": "packages/empty.pkg",
+        "staging_directory": "staging/empty",
+        "cache_directory": "cache/empty",
+        "extracted_file_count": 0,
+        "manifest": None,
+    }
+
+    controller = FieldOpsGUIController(
+        cache_path,
+        adapter,
+        clock=clock,
+        mission_loader=lambda path: package_summary,
+    )
+
+    workspace = controller.ingest_mission_package(Path("/missions/empty.pkg"))
+
+    assert workspace.status == "staged"
+    assert workspace.mission is None
+    assert "manifest" in workspace.headline.lower()
 
