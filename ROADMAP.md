@@ -20,7 +20,7 @@
 - [x] Add unit tests with telemetry datasets, including edge cases, and integrate the status path in `src/prrc_cli.py`.
 
 ## Phase 3 – FieldOps GUI Foundation
-- [ ] Deliver an offline-first FieldOps GUI optimized for Dell Rugged hardware with clear sync status, conflict resolution prompts, and mesh networking awareness.
+- [x] Deliver an offline-first FieldOps GUI optimized for Dell Rugged hardware with clear sync status, conflict resolution prompts, mesh networking awareness, and visual styling that follows `docs/fieldops_gui_style.md`.
 - [ ] Implement mission intake and briefing flows that surface package metadata once `load_mission_package` verifies archives, with quick links to SOPs, maps, and communications.
 - [ ] Build operational logging forms supporting GPS tagging, photo attachments, offline queueing, and status banners displaying sync and backlog counts.
 - [ ] Introduce resource request and task dashboards that allow accepting, deferring, and escalating assignments while offline with merges on reconnection.
