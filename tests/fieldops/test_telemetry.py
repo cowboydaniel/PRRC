@@ -173,3 +173,36 @@ def test_collect_telemetry_normalizes_units(telemetry_connector_stubs):
     assert queues.queues["uplink"] == 1
     assert queues.total_backlog == 1
 
+
+def test_collect_telemetry_handles_degraded_paths(telemetry_connector_stubs):
+    """Edge-case telemetry inputs degrade status and emit operator notes."""
+
+    stubs = telemetry_connector_stubs
+
+    # Sensor API outage
+    stubs["sensor_stub"].payload = []
+
+    # Cached events missing
+    stubs["event_stub"].payload = []
+
+    # Queue depths returned with invalid types and negative values
+    stubs["queue_stub"].payload = {"alerts": "invalid", "uplink": "15", "ingest": -4}
+
+    snapshot = telemetry.collect_telemetry_snapshot()
+
+    assert snapshot.status == "degraded"
+    assert "Sensor API returned no readings." in snapshot.notes
+    assert "Queue backlog exceeds nominal threshold." in snapshot.notes
+    assert "No cached events reported during collection window." in snapshot.notes
+
+    queues = snapshot.metrics.queues
+    # Invalid values are coerced to zero and totals remain non-negative
+    assert queues.queues["alerts"] == 0
+    assert queues.queues["ingest"] == 0
+    assert queues.queues["uplink"] == 15
+    assert queues.total_backlog == 15
+
+    events = snapshot.metrics.events
+    assert events.total_events == 0
+    assert events.records == []
+
