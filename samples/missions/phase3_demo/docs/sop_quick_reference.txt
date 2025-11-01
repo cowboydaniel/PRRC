@@ -1,0 +1,6 @@
+FieldOps Phase 3 Demo Mission
+=============================
+
+1. Confirm mesh uplink via RuggedNet.
+2. Stage mission package and verify signatures.
+3. Coordinate with HQ using secure comms channel.

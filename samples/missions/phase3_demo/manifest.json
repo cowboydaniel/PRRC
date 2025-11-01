@@ -1,0 +1,54 @@
+{
+  "mission_id": "ops-phase3-demo",
+  "name": "Phase 3 Demo Mission",
+  "version": "1.0.0",
+  "summary": "Demonstration mission package for the FieldOps GUI phase 3 milestone.",
+  "classification": "UNCLASSIFIED",
+  "created_at": "2024-05-10T13:00:00Z",
+  "updated_at": "2024-05-10T14:00:00Z",
+  "tags": [
+    "demo",
+    "phase3",
+    "fieldops"
+  ],
+  "contacts": [
+    {
+      "role": "Mission Lead",
+      "name": "Capt. Nora Ellis",
+      "callsign": "ALPHA-1",
+      "channel": "Secure Mesh 3"
+    },
+    {
+      "role": "Medical",
+      "name": "Lt. Isaiah Tran",
+      "callsign": "MERCY-4",
+      "channel": "Secure Mesh 1"
+    },
+    {
+      "role": "Logistics",
+      "name": "WO2 Priya Sandhu",
+      "callsign": "CARGO-2",
+      "channel": "HQ Fiber 7"
+    }
+  ],
+  "attachments": [
+    {
+      "name": "Sop Quick Reference.Txt",
+      "path": "docs/sop_quick_reference.txt",
+      "media_type": "text/plain",
+      "size_bytes": 197
+    },
+    {
+      "name": "Mission Overview.Geojson",
+      "path": "maps/mission_overview.geojson",
+      "media_type": "application/geo+json",
+      "size_bytes": 256
+    },
+    {
+      "name": "Mesh Callsigns.Txt",
+      "path": "comms/mesh_callsigns.txt",
+      "media_type": "text/plain",
+      "size_bytes": 70
+    }
+  ]
+}
