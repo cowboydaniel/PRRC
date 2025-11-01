@@ -134,6 +134,7 @@ class FieldOpsMainWindow(QMainWindow):
         self._build_ui()
         self._apply_styles()
         self._install_actions()
+        self._mission_view.set_load_demo_enabled(self._demo_package)
         self.resize(1280, 800)
 
         self._sync_timer = QTimer(self)
@@ -146,7 +147,8 @@ class FieldOpsMainWindow(QMainWindow):
         self._telemetry_timer.timeout.connect(self._refresh_telemetry)  # type: ignore[arg-type]
         self._telemetry_timer.start()
 
-        self._load_demo_data()
+        if self._demo_package is not None:
+            self._load_demo_data()
         self._refresh_state()
         self._refresh_telemetry()
 
@@ -273,6 +275,8 @@ class FieldOpsMainWindow(QMainWindow):
             self._top_bar.set_mesh_message("Mesh link active")
 
     def _load_demo_data(self) -> None:
+        if self._demo_package is None:
+            return
         demo_tasks = (
             TaskAssignmentCard(
                 task_id="med-resupply",
@@ -306,12 +310,10 @@ class FieldOpsMainWindow(QMainWindow):
         )
         self._controller.update_task_assignments(demo_tasks)
         self._controller.update_resource_requests(demo_requests)
-        self._mission_view.set_load_demo_enabled(self._demo_package)
-        if self._demo_package is not None:
-            try:
-                self._controller.ingest_mission_package(self._demo_package)
-            except Exception:
-                pass
+        try:
+            self._controller.ingest_mission_package(self._demo_package)
+        except Exception:
+            pass
 
     def _perform_sync(self) -> None:
         self._controller.attempt_sync()
@@ -925,14 +927,14 @@ def _prepare_demo_package() -> Path | None:
     return package_path
 
 
-def launch_app() -> int:
+def launch_app(*, demo_mode: bool = False) -> int:
     """Launch the FieldOps GUI application."""
 
     app = QApplication.instance() or QApplication(sys.argv)
     cache_path = Path.home() / ".prrc" / "fieldops_offline_queue.json"
     adapter = LocalEchoSyncAdapter()
     controller = FieldOpsGUIController(cache_path, adapter)
-    demo_package = _prepare_demo_package()
+    demo_package = _prepare_demo_package() if demo_mode else None
     window = FieldOpsMainWindow(
         controller,
         telemetry_provider=collect_telemetry_snapshot,
