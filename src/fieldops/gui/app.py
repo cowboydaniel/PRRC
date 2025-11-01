@@ -12,7 +12,10 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QCloseEvent, QFont
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QFileDialog,
     QFrame,
     QGroupBox,
@@ -20,6 +23,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMessageBox,
     QPushButton,
@@ -166,17 +170,29 @@ class FieldOpsMainWindow(QMainWindow):
             SPACING_GRID_PX, SPACING_GRID_PX * 2, SPACING_GRID_PX, SPACING_GRID_PX * 2
         )
 
+        button_widths: list[int] = []
         for index, entry in enumerate(self._navigation):
             button = QToolButton()
             button.setText(entry.label)
             button.setCheckable(True)
             button.setAutoExclusive(True)
             button.setObjectName("NavigationRailButton")
+            _apply_typography(button, "navigation_label")
             button.clicked.connect(lambda checked, i=index: self._set_active_page(i))  # type: ignore[arg-type]
+            metrics = button.fontMetrics()
+            label_width = metrics.horizontalAdvance(button.text())
+            button_widths.append(
+                label_width + (HORIZONTAL_PADDING_PX * 2) + (SPACING_GRID_PX * 2)
+            )
             navigation_layout.addWidget(button)
             self._navigation_buttons[entry.label] = button
             self._stack.addWidget(entry.widget)
         navigation_layout.addStretch(1)
+
+        if button_widths:
+            navigation_width = max(button_widths)
+            navigation_frame.setMinimumWidth(navigation_width)
+            navigation_frame.setMaximumWidth(navigation_width)
 
         content_frame = QWidget()
         content_layout = QVBoxLayout(content_frame)
@@ -257,8 +273,10 @@ class FieldOpsMainWindow(QMainWindow):
         self._log_view.show_submission(operation.operation_id)
         self._refresh_state()
 
-    def _apply_task_action(self, task_id: str, action: str) -> None:
-        self._controller.apply_task_action(task_id, action)
+    def _apply_task_action(
+        self, task_id: str, action: str, metadata: dict[str, object] | None = None
+    ) -> None:
+        self._controller.apply_task_action(task_id, action, metadata=metadata)
         self._refresh_state()
 
     def _apply_resource_action(self, request_id: str, action: str) -> None:
@@ -595,7 +613,9 @@ class OperationalLogView(QWidget):
 class TaskDashboardView(QWidget):
     """Task dashboard with offline badges."""
 
-    def __init__(self, action_callback: Callable[[str, str], None]) -> None:
+    def __init__(
+        self, action_callback: Callable[[str, str, dict[str, object] | None], None]
+    ) -> None:
         super().__init__()
         self._action_callback = action_callback
         layout = QVBoxLayout(self)
@@ -662,16 +682,173 @@ class TaskDashboardView(QWidget):
 
         action_row = QHBoxLayout()
         action_row.setSpacing(SPACING_GRID_PX)
-        for action in ("accept", "defer", "escalate"):
-            button = QPushButton(action.title())
-            button.setMinimumHeight(MIN_CONTROL_HEIGHT_PX)
-            button.clicked.connect(
-                lambda _=None, a=action, task_id=task.task_id: self._action_callback(task_id, a)
-            )  # type: ignore[arg-type]
-            action_row.addWidget(button)
+
+        accept_button = QPushButton("Accept")
+        accept_button.setMinimumHeight(MIN_CONTROL_HEIGHT_PX)
+        accept_enabled = task.display_status.lower() not in {"accepted", "completed"}
+        accept_button.setEnabled(accept_enabled)
+        accept_button.clicked.connect(
+            lambda _=None, task_id=task.task_id: self._action_callback(task_id, "accept", None)
+        )  # type: ignore[arg-type]
+        action_row.addWidget(accept_button)
+
+        complete_button = QPushButton("Complete")
+        complete_button.setMinimumHeight(MIN_CONTROL_HEIGHT_PX)
+        complete_button.setEnabled(task.display_status.lower() in {"accepted", "completed"})
+        complete_button.clicked.connect(lambda _=None, t=task: self._open_completion_dialog(t))
+        action_row.addWidget(complete_button)
+
+        defer_button = QPushButton("Defer")
+        defer_button.setMinimumHeight(MIN_CONTROL_HEIGHT_PX)
+        defer_button.clicked.connect(
+            lambda _=None, task_id=task.task_id: self._action_callback(task_id, "defer", None)
+        )  # type: ignore[arg-type]
+        action_row.addWidget(defer_button)
+
+        escalate_button = QPushButton("Escalate")
+        escalate_button.setMinimumHeight(MIN_CONTROL_HEIGHT_PX)
+        escalate_button.clicked.connect(
+            lambda _=None, task_id=task.task_id: self._action_callback(task_id, "escalate", None)
+        )  # type: ignore[arg-type]
+        action_row.addWidget(escalate_button)
+
         card_layout.addLayout(action_row)
         return card
 
+    def _open_completion_dialog(self, task: TaskAssignmentCard) -> None:
+        dialog = TaskCompletionDialog(task, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            metadata = dialog.completion_metadata()
+            self._action_callback(task.task_id, "complete", metadata)
+
+
+class TaskCompletionDialog(QDialog):
+    """Details dialog surfaced when completing a task."""
+
+    def __init__(self, task: TaskAssignmentCard, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(f"Complete Task – {task.title}")
+        self.setModal(True)
+        self.setMinimumWidth(520)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(
+            HORIZONTAL_PADDING_PX,
+            SPACING_GRID_PX * 2,
+            HORIZONTAL_PADDING_PX,
+            SPACING_GRID_PX * 2,
+        )
+        layout.setSpacing(SPACING_GRID_PX * 2)
+
+        notes_box = QGroupBox("Completion Notes")
+        notes_layout = QVBoxLayout(notes_box)
+        self._notes = QTextEdit()
+        self._notes.setPlaceholderText("Summarize the outcome and follow-on actions.")
+        self._notes.setMinimumHeight(120)
+        notes_layout.addWidget(self._notes)
+        layout.addWidget(notes_box)
+
+        photo_box = QGroupBox("Photos")
+        photo_layout = QVBoxLayout(photo_box)
+        self._photo_list = QListWidget()
+        photo_layout.addWidget(self._photo_list)
+        photo_buttons = QHBoxLayout()
+        add_photo = QPushButton("Add Photo")
+        remove_photo = QPushButton("Remove Selected")
+        add_photo.clicked.connect(self._add_photo)
+        remove_photo.clicked.connect(self._remove_selected_photo)
+        photo_buttons.addWidget(add_photo)
+        photo_buttons.addWidget(remove_photo)
+        photo_buttons.addStretch(1)
+        photo_layout.addLayout(photo_buttons)
+        layout.addWidget(photo_box)
+
+        incidents_box = QGroupBox("Incidents")
+        incidents_layout = QVBoxLayout(incidents_box)
+        self._incident_list = QListWidget()
+        incidents_layout.addWidget(self._incident_list)
+        incident_controls = QHBoxLayout()
+        self._incident_input = QLineEdit()
+        self._incident_input.setPlaceholderText("Brief incident summary")
+        add_incident = QPushButton("Add Incident")
+        remove_incident = QPushButton("Remove Selected")
+        add_incident.clicked.connect(self._add_incident)
+        remove_incident.clicked.connect(self._remove_selected_incident)
+        incident_controls.addWidget(self._incident_input)
+        incident_controls.addWidget(add_incident)
+        incident_controls.addWidget(remove_incident)
+        incidents_layout.addLayout(incident_controls)
+        layout.addWidget(incidents_box)
+
+        debrief_box = QGroupBox("Debrief")
+        debrief_layout = QVBoxLayout(debrief_box)
+        self._debrief_checkbox = QCheckBox("Debrief completed with team")
+        self._debrief_notes = QTextEdit()
+        self._debrief_notes.setPlaceholderText("Capture key takeaways and follow-up tasks.")
+        self._debrief_notes.setMinimumHeight(80)
+        debrief_layout.addWidget(self._debrief_checkbox)
+        debrief_layout.addWidget(self._debrief_notes)
+        layout.addWidget(debrief_box)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Save
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _add_photo(self) -> None:
+        filename, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Photo",
+            str(Path.home()),
+            "Images (*.png *.jpg *.jpeg *.bmp *.gif);;All Files (*)",
+        )
+        if not filename:
+            return
+        item = QListWidgetItem(Path(filename).name)
+        item.setData(Qt.ItemDataRole.UserRole, filename)
+        self._photo_list.addItem(item)
+
+    def _remove_selected_photo(self) -> None:
+        for item in self._photo_list.selectedItems():
+            row = self._photo_list.row(item)
+            self._photo_list.takeItem(row)
+
+    def _add_incident(self) -> None:
+        text = self._incident_input.text().strip()
+        if not text:
+            return
+        self._incident_list.addItem(text)
+        self._incident_input.clear()
+
+    def _remove_selected_incident(self) -> None:
+        for item in self._incident_list.selectedItems():
+            row = self._incident_list.row(item)
+            self._incident_list.takeItem(row)
+
+    def completion_metadata(self) -> dict[str, object]:
+        notes = self._notes.toPlainText().strip()
+        photos: list[str] = []
+        for index in range(self._photo_list.count()):
+            item = self._photo_list.item(index)
+            stored = item.data(Qt.ItemDataRole.UserRole)
+            photos.append(str(stored or item.text()))
+        incidents = [self._incident_list.item(i).text() for i in range(self._incident_list.count())]
+        debrief_notes = self._debrief_notes.toPlainText().strip()
+
+        metadata: dict[str, object] = {}
+        if notes:
+            metadata["notes"] = notes
+        if photos:
+            metadata["photos"] = photos
+        if incidents:
+            metadata["incidents"] = incidents
+        metadata["debrief"] = {
+            "completed": self._debrief_checkbox.isChecked(),
+            "notes": debrief_notes,
+        }
+        return metadata
 
 class ResourceBoardView(QWidget):
     """Resource request board with offline badge."""
@@ -941,8 +1118,13 @@ def launch_app(*, demo_mode: bool = False) -> int:
         sync_adapter=adapter,
         demo_package=demo_package,
     )
-    window.show()
+    try:
+        window.showMaximized()
+    except AttributeError:  # pragma: no cover - compatibility guard
+        window.show()
+    else:
+        window.show()
     return app.exec()
 
 
-__all__ = ["FieldOpsMainWindow", "launch_app", "LocalEchoSyncAdapter"]
+__all__ = ["FieldOpsMainWindow", "TaskCompletionDialog", "launch_app", "LocalEchoSyncAdapter"]

@@ -88,8 +88,6 @@ def component_styles() -> ComponentStyles:
     navigation_rail = f"""
     QWidget#NavigationRail {{
         background: {primary};
-        min-width: 72px;
-        max-width: 72px;
     }}
     QToolButton#NavigationRailButton {{
         color: {primary_contrast};

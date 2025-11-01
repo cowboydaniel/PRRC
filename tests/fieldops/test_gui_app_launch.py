@@ -33,8 +33,13 @@ class DummyWindow:
         self.sync_adapter = sync_adapter
         self.demo_package = demo_package
         self.shown = False
+        self.maximized = False
 
     def show(self) -> None:  # pragma: no cover - trivial setter
+        self.shown = True
+
+    def showMaximized(self) -> None:  # pragma: no cover - trivial setter
+        self.maximized = True
         self.shown = True
 
 
@@ -72,6 +77,7 @@ def test_launch_app_production_flow(monkeypatch):
     assert created_windows
     assert created_windows[0].demo_package is None
     assert created_windows[0].shown is True
+    assert created_windows[0].maximized is True
 
 
 def test_launch_app_demo_flow(monkeypatch, tmp_path: Path):
@@ -102,3 +108,4 @@ def test_launch_app_demo_flow(monkeypatch, tmp_path: Path):
     assert created_windows
     assert created_windows[0].demo_package == demo_path
     assert created_windows[0].shown is True
+    assert created_windows[0].maximized is True
