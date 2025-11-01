@@ -153,6 +153,72 @@ def _ensure_pyside_stubs() -> None:
         def setAutoExclusive(self, *args, **kwargs):
             return None
 
+    class _Dialog(_Widget):
+        class DialogCode:
+            Accepted = 1
+            Rejected = 0
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._result = self.DialogCode.Rejected
+
+        def exec(self):
+            return self._result
+
+        def accept(self):
+            self._result = self.DialogCode.Accepted
+
+        def reject(self):
+            self._result = self.DialogCode.Rejected
+
+        def setModal(self, *args, **kwargs):
+            return None
+
+        def setMinimumWidth(self, *args, **kwargs):
+            return None
+
+    class _DialogButtonBox(_Widget):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.accepted = _Signal()
+            self.rejected = _Signal()
+
+    class _ListWidgetItem:
+        def __init__(self, text=""):
+            self._text = text
+            self._data = {}
+
+        def setData(self, role, value):
+            self._data[role] = value
+
+        def data(self, role):
+            return self._data.get(role)
+
+        def text(self):
+            return self._text
+
+    class _ListWidget(_Widget):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._items: list[_ListWidgetItem] = []
+
+        def addItem(self, item):
+            self._items.append(item)
+
+        def count(self):
+            return len(self._items)
+
+        def item(self, index):
+            return self._items[index]
+
+        def selectedItems(self):  # pragma: no cover - selection not modeled
+            return []
+
+        def takeItem(self, row):
+            if 0 <= row < len(self._items):
+                return self._items.pop(row)
+            return None
+
     class _Application(_Widget):
         _instance = None
 
@@ -214,6 +280,7 @@ def _ensure_pyside_stubs() -> None:
             return None
 
     qtwidgets.QApplication = _Application
+    qtwidgets.QCheckBox = _Button
     qtwidgets.QComboBox = _Widget
     qtwidgets.QFileDialog = _QFileDialog
     qtwidgets.QFrame = _Widget
@@ -221,12 +288,15 @@ def _ensure_pyside_stubs() -> None:
     qtwidgets.QHBoxLayout = _Layout
     qtwidgets.QLabel = _Widget
     qtwidgets.QLineEdit = _Widget
-    qtwidgets.QListWidget = _Widget
+    qtwidgets.QListWidget = _ListWidget
+    qtwidgets.QListWidgetItem = _ListWidgetItem
     qtwidgets.QMainWindow = _MainWindow
     qtwidgets.QMessageBox = _QMessageBox
     qtwidgets.QPushButton = _Button
     qtwidgets.QScrollArea = _Widget
     qtwidgets.QSizePolicy = _QSizePolicy
+    qtwidgets.QDialog = _Dialog
+    qtwidgets.QDialogButtonBox = _DialogButtonBox
     qtwidgets.QStackedWidget = _Widget
     qtwidgets.QTabWidget = _Widget
     qtwidgets.QTextEdit = _Widget

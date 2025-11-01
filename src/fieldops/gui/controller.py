@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterable, Mapping, Protocol, Sequence
 
-_SUPPORTED_ACTIONS = {"accept", "defer", "escalate"}
+_SUPPORTED_ACTIONS = {"accept", "defer", "escalate", "complete"}
 
 from .offline_cache import OfflineQueueStorage
 from .state import (
@@ -142,11 +142,21 @@ class FieldOpsGUIController:
         return self._compose_resource_board(timestamp=self._clock())
 
     def apply_task_action(
-        self, task_id: str, action: str, *, notes: str | None = None
+        self,
+        task_id: str,
+        action: str,
+        *,
+        notes: str | None = None,
+        metadata: Mapping[str, object] | None = None,
     ) -> OfflineOperation:
         """Apply a local action to a task assignment."""
 
         payload: dict[str, object] = {"task_id": task_id, "action": action}
+        if metadata:
+            payload["metadata"] = dict(metadata)
+            meta_notes = metadata.get("notes") if isinstance(metadata, Mapping) else None
+            if isinstance(meta_notes, str) and meta_notes.strip():
+                payload.setdefault("notes", meta_notes)
         if notes:
             payload["notes"] = notes
         if action not in _SUPPORTED_ACTIONS:

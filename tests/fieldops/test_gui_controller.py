@@ -356,16 +356,25 @@ def test_task_dashboard_offline_actions_merge(cache_path: Path) -> None:
     dashboard = controller.update_task_assignments(assignments)
 
     assert dashboard.columns[0].tasks[0].priority_color_token == "danger"
-    operation = controller.apply_task_action("TASK-1", "accept", notes="Bravo team")
+    assert len(dashboard.columns) == 5
+    operation_accept = controller.apply_task_action("TASK-1", "accept", notes="Bravo team")
+
+    operation_escalate = controller.apply_task_action("TASK-2", "escalate")
 
     state = controller.get_state().task_dashboard
-    assert state.pending_local_actions == 1
+    assert state.pending_local_actions == 2
     assert state.offline_badge_token == "accent"
     accepted_column = next(column for column in state.columns if column.column_id == "accepted")
     assert accepted_column.tasks[0].offline_action == "accept"
+    escalated_column = next(column for column in state.columns if column.column_id == "escalated")
+    assert escalated_column.tasks[0].priority_color_token == "danger"
 
     adapter.results.append(
-        SyncResult(applied_operation_ids=(operation.operation_id,), conflicts=(), errors=())
+        SyncResult(
+            applied_operation_ids=(operation_accept.operation_id, operation_escalate.operation_id),
+            conflicts=(),
+            errors=(),
+        )
     )
     controller.attempt_sync()
 
@@ -375,6 +384,48 @@ def test_task_dashboard_offline_actions_merge(cache_path: Path) -> None:
     accepted_column = next(column for column in state.columns if column.column_id == "accepted")
     assert accepted_column.tasks[0].display_status == "accepted"
     assert accepted_column.tasks[0].offline_action is None
+    escalated_column = next(column for column in state.columns if column.column_id == "escalated")
+    assert escalated_column.tasks[0].offline_action is None
+    assert escalated_column.tasks[0].display_status == "escalated"
+
+
+def test_task_completion_tracks_metadata(cache_path: Path) -> None:
+    adapter = DummySyncAdapter(available=False)
+    clock = fixed_clock(datetime(2024, 1, 1, tzinfo=timezone.utc))
+    controller = FieldOpsGUIController(cache_path, adapter, clock=clock)
+
+    assignments = (
+        TaskAssignmentCard(
+            task_id="TASK-1",
+            title="Finalize comms plan",
+            status="accepted",
+            display_status="accepted",
+            priority="priority",
+            summary="Coordinate final hand-off to HQ.",
+        ),
+    )
+
+    controller.update_task_assignments(assignments)
+
+    metadata = {
+        "notes": "Mission accomplished",
+        "photos": ["/tmp/after.jpg"],
+        "incidents": ["Minor delay at checkpoint"],
+        "debrief": {"completed": True, "notes": "Reviewed with squad"},
+    }
+
+    operation = controller.apply_task_action("TASK-1", "complete", metadata=metadata)
+
+    payload = operation.payload
+    assert payload["action"] == "complete"
+    assert payload["notes"] == "Mission accomplished"
+    assert payload["metadata"]["photos"] == ["/tmp/after.jpg"]
+
+    dashboard = controller.get_state().task_dashboard
+    completed_column = next(column for column in dashboard.columns if column.column_id == "completed")
+    assert completed_column.tasks
+    assert completed_column.tasks[0].offline_action == "complete"
+    assert completed_column.tasks[0].display_status == "completed"
 
 
 def test_resource_request_actions_merge(cache_path: Path) -> None:

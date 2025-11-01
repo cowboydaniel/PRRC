@@ -309,6 +309,7 @@ ACTION_TO_STATUS = {
     "accept": "accepted",
     "defer": "deferred",
     "escalate": "escalated",
+    "complete": "completed",
 }
 
 
@@ -350,12 +351,27 @@ class TaskAssignmentCard:
         if not action:
             return replace(self, offline_action=None, display_status=self.status)
         status = ACTION_TO_STATUS.get(action, self.display_status)
+        if action == "escalate":
+            return replace(
+                self,
+                offline_action=action,
+                display_status=status,
+                priority="Emergency",
+            )
         return replace(self, offline_action=action, display_status=status)
 
     def with_merged_action(self, action: str) -> "TaskAssignmentCard":
         """Return a card that reflects a merged action."""
 
         status = ACTION_TO_STATUS.get(action, self.status)
+        if action == "escalate":
+            return replace(
+                self,
+                status=status,
+                display_status=status,
+                offline_action=None,
+                priority="Emergency",
+            )
         return replace(self, status=status, display_status=status, offline_action=None)
 
     @property
@@ -371,12 +387,13 @@ class TaskAssignmentCard:
         status = ACTION_TO_STATUS.get(action, "pending")
         headline = f"Offline {action} pending"
         summary = "Awaiting HQ merge for task update"
+        priority = "Emergency" if action == "escalate" else "priority"
         return cls(
             task_id=task_id,
             title=headline,
             status=status,
             display_status=status,
-            priority="priority",
+            priority=priority,
             summary=summary,
             due_at=timestamp,
             offline_action=action,
@@ -418,6 +435,7 @@ class TaskDashboardState:
             "accepted": [],
             "deferred": [],
             "escalated": [],
+            "completed": [],
         }
         for assignment in assignments:
             bucket = assignment.display_status.lower()
@@ -461,6 +479,12 @@ class TaskDashboardState:
                 title="Escalated",
                 header_token="secondary",
                 tasks=_sorted(columns["escalated"]),
+            ),
+            TaskColumnState(
+                column_id="completed",
+                title="Completed",
+                header_token="secondary",
+                tasks=_sorted(columns["completed"]),
             ),
         )
 
