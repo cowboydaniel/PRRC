@@ -319,7 +319,7 @@ The HQ Command GUI now has a production-ready foundation with:
 
 **Deliverables:**
 - Error display components (`ErrorMessage`, `WarningMessage`, `SuccessMessage`)
-- Graceful degradation UI (fallback to Qt shim mode when no bindings)
+- UI requires PySide6 runtime (no shim fallback)
 - Error logging integration (ready for Phase 4)
 - User-friendly error messages
 
@@ -327,7 +327,7 @@ The HQ Command GUI now has a production-ready foundation with:
 - Inline error messages with danger color styling
 - Context drawer error display
 - `show_error()` method in main window
-- QT_AVAILABLE checks prevent crashes when Qt unavailable
+- Error handlers validated against PySide6 runtime failures
 
 ---
 
@@ -504,7 +504,7 @@ Theme Structure:
 - ✅ Responsive layout (splitter resizing)
 - ✅ Component styling (buttons, badges, cards, inputs)
 - ✅ Error and loading message display
-- ✅ Qt shim mode (fallback when PySide6 unavailable)
+- ❌ Qt shim mode removed; PySide6 is now mandatory
 
 ### Integration with Existing Code
 - ✅ Compatible with existing `HQCommandController`

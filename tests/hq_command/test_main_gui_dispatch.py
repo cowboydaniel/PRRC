@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+pytest.importorskip("PySide6.QtWidgets")
+
 from hq_command import gui as hq_gui
 from hq_command import main as hq_main
 
@@ -40,15 +42,51 @@ def test_main_launches_gui(monkeypatch: pytest.MonkeyPatch, config_file: Path) -
     assert captured["return"] == 42
 
 
-def test_gui_main_errors_without_qt(monkeypatch: pytest.MonkeyPatch, config_file: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    """Ensure the GUI launcher refuses to run when Qt bindings are missing."""
+def test_gui_main_creates_application(monkeypatch: pytest.MonkeyPatch, config_file: Path) -> None:
+    """The GUI entry point should wire up PySide6 constructs and execute the app."""
 
-    monkeypatch.setattr("hq_command.gui.QT_AVAILABLE", False)
+    recorded: dict[str, object] = {}
 
-    exit_code = hq_gui.main(["--config", str(config_file)])
+    class FakeApp:
+        def __init__(self, argv: list[str]) -> None:
+            recorded["argv"] = list(argv)
 
-    captured = capsys.readouterr()
-    assert exit_code == 1
-    assert "Qt bindings are required" in captured.err
-    for binding in hq_gui.SUPPORTED_QT_BINDINGS:
-        assert binding in captured.err
+        def exec(self) -> int:
+            recorded["exec_called"] = True
+            return 7
+
+    class FakeWindow:
+        def __init__(self, controller, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
+            recorded["controller"] = controller
+            recorded["window_args"] = (args, kwargs)
+
+        def show(self) -> None:
+            recorded["shown"] = True
+
+        def refresh(self) -> None:
+            recorded["refresh_called"] = True
+
+    class FakeTimer:
+        def __init__(self) -> None:
+            recorded["timer_created"] = True
+
+        def setInterval(self, interval: int) -> None:
+            recorded["interval"] = interval
+
+        def start(self) -> None:
+            recorded["timer_started"] = True
+
+    monkeypatch.setattr(hq_gui.QtWidgets, "QApplication", FakeApp)
+    monkeypatch.setattr(hq_gui, "HQMainWindow", FakeWindow)
+    monkeypatch.setattr(hq_gui.QtCore, "QTimer", FakeTimer)
+    monkeypatch.setattr(hq_gui, "_connect_timer", lambda timer, cb: recorded.setdefault("connected_callback", cb))
+    monkeypatch.setattr(hq_gui, "_start_timer", lambda timer: recorded.setdefault("timer_started_flag", True))
+
+    exit_code = hq_gui.main(["--config", str(config_file), "--refresh-interval", "1.5"])
+
+    assert exit_code == 7
+    assert recorded["argv"][1:] == ["--config", str(config_file), "--refresh-interval", "1.5"]
+    assert recorded["shown"] is True
+    assert "controller" in recorded
+    assert recorded["connected_callback"] is not None
+    assert recorded["timer_started_flag"] is True

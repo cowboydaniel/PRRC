@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Optional
 
 from .controller import RosterListModel, TaskQueueModel, TelemetrySummaryModel
-from .qt_compat import QT_AVAILABLE, QtWidgets
+from .qt_compat import QtWidgets
 
 
 class _BasePane(QtWidgets.QWidget):
@@ -15,19 +15,15 @@ class _BasePane(QtWidgets.QWidget):
         self._title = title
         self._model = None
 
-        if QT_AVAILABLE:
-            layout = QtWidgets.QVBoxLayout(self)
-            self._title_label = QtWidgets.QLabel(title)
-            layout.addWidget(self._title_label)
-            self._view = QtWidgets.QListView()
-            layout.addWidget(self._view)
-        else:
-            self._title_label = None
-            self._view = None
+        layout = QtWidgets.QVBoxLayout(self)
+        self._title_label = QtWidgets.QLabel(title)
+        layout.addWidget(self._title_label)
+        self._view = QtWidgets.QListView()
+        layout.addWidget(self._view)
 
     def set_model(self, model: RosterListModel | TaskQueueModel | TelemetrySummaryModel) -> None:
         self._model = model
-        if QT_AVAILABLE and self._view is not None:
+        if self._view is not None:
             self._view.setModel(model)
 
     @property

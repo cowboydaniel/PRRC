@@ -8,7 +8,7 @@ from typing import Any, Sequence
 
 from .controller import HQCommandController
 from .main_window import HQMainWindow
-from .qt_compat import QT_AVAILABLE, SUPPORTED_QT_BINDINGS, QtCore, QtWidgets
+from .qt_compat import QtCore, QtWidgets
 
 __all__ = ["HQCommandController", "HQMainWindow", "main"]
 
@@ -49,14 +49,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     config_path = args.config
     controller = HQCommandController()
     controller.load_from_file(config_path)
-
-    if not QT_AVAILABLE:
-        bindings_list = ", ".join(SUPPORTED_QT_BINDINGS)
-        sys.stderr.write(
-            "Qt bindings are required to launch the HQ Command GUI. "
-            f"Install one of: {bindings_list}.\n"
-        )
-        return 1
 
     qt_argv = list(sys.argv if argv is None else [sys.argv[0], *argv])
     app = QtWidgets.QApplication(qt_argv)

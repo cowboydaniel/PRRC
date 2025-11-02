@@ -3,10 +3,9 @@
 # Last Updated: 2025-11-02
 
 # ============================================================================
-# GUI Framework (Qt Bindings)
+# GUI Framework (PySide6)
 # ============================================================================
-# Recommendation: Use PySide6 (LGPL license, official Qt for Python)
-# Fallback order: PyQt6 > PySide2 > PyQt5 (handled by qt_compat.py)
+# PySide6 is the sole supported GUI binding for the PRRC suite.
 
 PySide6>=6.6.0,<7.0.0
 
@@ -24,7 +23,7 @@ PyYAML>=6.0.2,<7.0.0          # YAML configuration file parsing
 # ============================================================================
 # Notes:
 # ============================================================================
-# - Qt binding installation: pip install PySide6
+# - Install the GUI binding with: pip install PySide6
 # - For development dependencies, see requirements-dev.txt
 # - For frozen builds: pip freeze > requirements-lock.txt
 # - Version ranges allow patch updates for security fixes

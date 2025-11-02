@@ -563,7 +563,7 @@ Operators can now:
 
 No new external dependencies for Phase 3.
 Continues to use:
-- PySide6/PyQt6/PySide2/PyQt5 (any supported Qt binding)
+- PySide6 runtime (sole supported Qt for Python binding)
 - Python ≥3.9
 
 ### Configuration

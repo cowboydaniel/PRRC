@@ -13,14 +13,12 @@
 - **Platform:** Linux 4.4.0 ✓
 - **Directory Permissions:** rwxr-xr-x (appropriate for development) ✓
 
-### Qt Binding Status
-- **PySide6:** Not installed (recommended primary binding)
-- **PyQt6:** Not installed
-- **PySide2:** Not installed
-- **PyQt5:** Not installed
-- **Fallback Mode:** Qt shim mode available for headless testing ✓
+### PySide6 Binding Status
+- **PySide6:** Required GUI binding (install via requirements.txt)
+- **Other Qt bindings:** Not supported in the current architecture
+- **Fallback Mode:** Removed — real PySide6 must be present for development and testing ✓
 
-**Action Required:** Install PySide6 for GUI development (see requirements.txt)
+**Action Required:** Ensure PySide6 is installed before running GUI components
 
 ---
 
@@ -45,7 +43,7 @@
 ├── tests/                        # Test suite (1,992 LOC)
 │   ├── hq_command/              # HQ Command tests
 │   ├── fieldops/                # FieldOps tests
-│   └── conftest.py              # pytest + Qt stub config
+│   └── conftest.py              # pytest configuration (expects PySide6)
 ├── docs/                         # Documentation (well-documented)
 │   ├── hq_command_gui_roadmap.md    # Phase 0-9 roadmap
 │   ├── hq_command_gui_design.md     # UI/UX specifications
@@ -82,13 +80,13 @@
 1. **requirements.txt** - Production dependencies with pinned versions
 2. **requirements-dev.txt** - Development tooling dependencies
 
-### Qt Binding Strategy
+### PySide6 Strategy
 - **Primary:** PySide6 ≥6.6.0
-- **Fallback:** PyQt6, PySide2, PyQt5 (via qt_compat.py)
-- **Testing:** Qt shim mode for headless CI/CD
+- **Fallback:** None — PySide6 is the only supported binding
+- **Testing:** Run against the real PySide6 runtime (no shim mode)
 
 ### Dependency Categories
-- **GUI Framework:** PySide6 (LGPL, recommended over PyQt6 GPL)
+- **GUI Framework:** PySide6 (LGPL, official Qt for Python)
 - **Data Processing:** pyyaml, dataclasses (built-in for Python ≥3.7)
 - **Testing:** pytest, pytest-cov, pytest-qt
 - **Code Quality:** flake8, pylint, black, mypy, ruff
@@ -240,7 +238,7 @@ pip install dist/prrc_os_suite-0.1.0-py3-none-any.whl
 ### Test Structure
 ```
 tests/
-├── conftest.py                           # Pytest config + Qt shims (324 LOC)
+├── conftest.py                           # Pytest config (requires PySide6)
 ├── hq_command/
 │   ├── test_gui_controller_models.py     # Model tests (71 LOC)
 │   ├── test_main_gui_dispatch.py         # GUI dispatch (54 LOC)
@@ -278,7 +276,7 @@ pytest -v -s
 ### CI/CD Integration
 - Tests run on every push to feature branches
 - Coverage reports generated and tracked
-- Qt shim allows headless testing without display server
+- PySide6 required on CI runners (headless mode validated)
 
 ---
 

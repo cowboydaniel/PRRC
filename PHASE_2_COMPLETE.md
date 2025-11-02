@@ -238,7 +238,7 @@ Phase 2 of the HQ Command GUI has been successfully completed, delivering rich d
 - QtWidgets classes: QTableView, QHeaderView, QStyledItemDelegate, QMenu, QAction, etc.
 - QtCore classes: QAbstractItemModel, QModelIndex, QRect, QSize, etc.
 - QtGui classes: QPainter, QPen, QBrush, QColor, QIcon, QPixmap
-- Conditional imports for different Qt versions (PySide6/PyQt6/PySide2/PyQt5)
+- PySide6-specific imports consolidated for simplicity
 - Shim mode support for testing without Qt
 
 ---
@@ -400,7 +400,7 @@ HQMainWindow
 ### Qt Requirements
 - Qt 5.15+ or Qt 6.x
 - Modules: QtCore, QtWidgets, QtGui
-- All Phase 2 components work with PySide6, PyQt6, PySide2, PyQt5
+- All Phase 2 components target PySide6 exclusively
 
 ---
 
@@ -458,8 +458,8 @@ HQMainWindow
 4. ✅ Enhanced qt_compat improved developer experience
 
 ### Challenges Overcome
-1. Conditional Qt imports for multiple Qt versions
-2. Polygon rendering for sparklines (fallback implemented)
+1. Transitioning legacy multi-binding code to PySide6-only imports
+2. Polygon rendering for sparklines (ensured PySide6 compatibility)
 3. Theme integration across all new components
 4. Balancing feature richness with code simplicity
 

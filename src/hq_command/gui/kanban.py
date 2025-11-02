@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 from .qt_compat import (
-    QT_AVAILABLE,
     QWidget,
     QVBoxLayout,
     QHBoxLayout,

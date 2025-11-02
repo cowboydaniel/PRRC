@@ -14,7 +14,6 @@ from pathlib import Path
 
 from .controller import HQCommandController
 from .qt_compat import (
-    QT_AVAILABLE,
     QtWidgets,
     QWidget,
     QMainWindow,
@@ -111,26 +110,21 @@ class HQMainWindow(QMainWindow):
 
     def _setup_window(self):
         """Configure main window properties."""
-        if QT_AVAILABLE:
-            self.setWindowTitle("HQ Command Console")
-            self.setMinimumSize(1024, 600)  # Minimum for responsive layout
+        self.setWindowTitle("HQ Command Console")
+        self.setMinimumSize(1024, 600)  # Minimum for responsive layout
 
     def _setup_theme(self):
         """Apply theme to application."""
-        if QT_AVAILABLE:
-            # Build and set palette
-            palette = build_palette(self.current_theme.variant)
-            self.setPalette(palette)
+        # Build and set palette
+        palette = build_palette(self.current_theme.variant)
+        self.setPalette(palette)
 
-            # Apply component styles
-            stylesheet = component_styles(self.current_theme.variant)
-            self.setStyleSheet(stylesheet)
+        # Apply component styles
+        stylesheet = component_styles(self.current_theme.variant)
+        self.setStyleSheet(stylesheet)
 
     def _create_ui(self):
         """Create main UI layout."""
-        if not QT_AVAILABLE:
-            return
-
         # Central widget with main layout
         central = QWidget(self)
         main_layout = QHBoxLayout(central)
@@ -177,9 +171,6 @@ class HQMainWindow(QMainWindow):
 
     def _create_section_views(self):
         """Create views for each navigation section."""
-        if not QT_AVAILABLE:
-            return
-
         # Live Ops Section (default view with panes)
         live_ops_view = self._create_live_ops_view()
         self.section_stack.addWidget(live_ops_view)
@@ -281,9 +272,6 @@ class HQMainWindow(QMainWindow):
 
     def _setup_keyboard_shortcuts(self):
         """Set up keyboard navigation shortcuts (Phase 1 + Phase 3 enhancements)."""
-        if not QT_AVAILABLE:
-            return
-
         callbacks = {
             "nav_live_ops": lambda: self._on_section_changed("live_ops"),
             "nav_task_board": lambda: self._on_section_changed("task_board"),
@@ -302,9 +290,6 @@ class HQMainWindow(QMainWindow):
 
     def _setup_accessibility(self):
         """Set up accessibility features."""
-        if not QT_AVAILABLE:
-            return
-
         # Apply accessibility enhancements
         setup_accessibility(self)
 
@@ -337,7 +322,7 @@ class HQMainWindow(QMainWindow):
 
         Refreshes all data views.
         """
-        if QT_AVAILABLE and hasattr(self, 'roster_pane'):
+        if hasattr(self, 'roster_pane'):
             # Refresh enhanced panes (Phase 2)
             self.roster_pane.refresh()
             self.task_pane.refresh()
@@ -368,9 +353,6 @@ class HQMainWindow(QMainWindow):
         Args:
             message: Error message to display
         """
-        if not QT_AVAILABLE:
-            return
-
         self.context_drawer.clear_content()
         self.context_drawer.set_title("Error")
         error_widget = ErrorMessage(message)
@@ -384,9 +366,6 @@ class HQMainWindow(QMainWindow):
         Args:
             message: Loading message
         """
-        if not QT_AVAILABLE:
-            return
-
         self.context_drawer.clear_content()
         self.context_drawer.set_title("Loading")
 
@@ -404,9 +383,6 @@ class HQMainWindow(QMainWindow):
         Args:
             variant: Theme variant to switch to
         """
-        if not QT_AVAILABLE:
-            return
-
         self.current_theme = Theme(variant)
         self._setup_theme()
 
@@ -414,7 +390,7 @@ class HQMainWindow(QMainWindow):
         """Handle window resize to position context drawer."""
         super().resizeEvent(event)
 
-        if QT_AVAILABLE and hasattr(self, 'context_drawer'):
+        if hasattr(self, 'context_drawer'):
             # Position drawer at right edge
             parent_width = self.centralWidget().width()
             if self.context_drawer.is_open:
@@ -457,8 +433,7 @@ class HQMainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """Handle window close to save state."""
-        if QT_AVAILABLE:
-            self.window_manager.save_window_state(self)
+        self.window_manager.save_window_state(self)
         super().closeEvent(event)
 
     # =========================================================================
@@ -467,9 +442,6 @@ class HQMainWindow(QMainWindow):
 
     def _enhance_status_bar(self):
         """Enhance status bar with search and notifications (Phase 3)."""
-        if not QT_AVAILABLE:
-            return
-
         # Add search bar (3-15)
         self.search_bar = GlobalSearchBar()
         self.search_bar.search_requested.connect(self._on_search_requested)
@@ -513,9 +485,6 @@ class HQMainWindow(QMainWindow):
 
     def _setup_context_menus(self):
         """Set up context menus for tasks and responders (3-19)."""
-        if not QT_AVAILABLE:
-            return
-
         # Task pane context menu
         if hasattr(self, 'task_pane'):
             self.task_pane.setContextMenuPolicy(Qt.CustomContextMenu)

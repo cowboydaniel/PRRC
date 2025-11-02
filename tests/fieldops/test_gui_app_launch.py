@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+pytest.importorskip("PySide6.QtWidgets")
+
 import fieldops.gui.app as app
 
 

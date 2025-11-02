@@ -11,7 +11,6 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime
 
 from .qt_compat import (
-    QT_AVAILABLE,
     QWidget,
     QVBoxLayout,
     QHBoxLayout,

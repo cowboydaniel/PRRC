@@ -104,7 +104,7 @@ Coverage by Module (Estimated):
 - **Structure:** Good use of Arrange-Act-Assert pattern
 - **Naming:** Descriptive test names following convention
 - **Fixtures:** Well-organized in conftest.py
-- **Mocking:** Good use of Qt shims for headless testing
+- **Mocking:** Strategic use of PySide6 patching for headless testing
 - **Parametrization:** Minimal - opportunity for expansion
 
 ---

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from hq_command.gui.qt_compat import QT_AVAILABLE, QPolygonF, QPointF, qt_exec
+pytest.importorskip("PySide6.QtWidgets")
+
+from hq_command.gui.qt_compat import QPolygonF, QPointF, qt_exec
 
 
 class _ExecRecorder:
@@ -50,7 +52,9 @@ def test_qt_exec_returns_none_when_no_method() -> None:
     assert qt_exec(_NoExec()) is None
 
 
-@pytest.mark.skipif(QT_AVAILABLE, reason="Only applicable when Qt bindings are unavailable")
-def test_polygon_classes_unavailable_without_qt_bindings() -> None:
-    assert QPolygonF is None
-    assert QPointF is None
+def test_polygon_classes_available() -> None:
+    """PySide6 polygon helpers are provided by the compatibility layer."""
+
+    polygon = QPolygonF([QPointF(0, 0), QPointF(1, 1)])
+
+    assert isinstance(polygon, QPolygonF)

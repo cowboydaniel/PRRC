@@ -132,7 +132,7 @@ Refs: #45
 ```
 fix(qt-compat): Handle PySide6 missing QtCore attribute
 
-Gracefully fallback to shim mode when PySide6 is partially installed.
+Fail fast when PySide6 is unavailable or partially installed.
 Prevents AttributeError during Qt binding validation.
 
 Fixes: #78

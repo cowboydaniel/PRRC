@@ -102,20 +102,14 @@ pytest -n 4
 
 ## Test Infrastructure
 
-### Qt Compatibility Shim
+### PySide6 Test Requirements
 
-The `conftest.py` file provides a lightweight Qt shim that allows tests to run in headless environments (CI/CD) without requiring an actual Qt installation or X11 display server.
+The `conftest.py` file verifies that PySide6 is installed and ensures the `src` directory is importable. Tests now execute against the real PySide6 runtime, aligning test behavior with production deployments.
 
-**Key Features:**
-- Stub implementations of PySide6/PyQt6/PySide2/PyQt5 classes
-- Signal/slot mechanism simulation
-- QAbstractListModel data/rowCount mocking
-- Automatic injection into sys.modules before test execution
-
-**Usage:**
-Tests written against real Qt APIs will work seamlessly in both:
-1. **Development:** Real Qt bindings (PySide6/PyQt6/etc.)
-2. **CI/CD:** Qt shim mode (no Qt installation required)
+**Key Expectations:**
+- Install PySide6 before running the test suite
+- Ensure CI environments provide the PySide6 wheel (headless mode is supported)
+- Maintain tests that interact with Qt APIs by patching specific PySide6 classes where isolation is needed
 
 ### Fixtures
 

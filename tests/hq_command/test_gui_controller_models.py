@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+pytest.importorskip("PySide6.QtWidgets")
+
 from hq_command.gui import HQCommandController
 from hq_command.main import build_demo_inputs
 
