@@ -50,3 +50,5 @@ def test_gui_main_errors_without_qt(monkeypatch: pytest.MonkeyPatch, config_file
     captured = capsys.readouterr()
     assert exit_code == 1
     assert "Qt bindings are required" in captured.err
+    for binding in hq_gui.SUPPORTED_QT_BINDINGS:
+        assert binding in captured.err
