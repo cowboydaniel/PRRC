@@ -102,6 +102,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Run with canned demo data and human-readable output",
     )
     parser.add_argument(
+        "--gui",
+        action="store_true",
+        help="Launch the HQ Command GUI console instead of writing CLI output",
+    )
+    parser.add_argument(
         "--config",
         type=Path,
         default=_default_config_path(),
@@ -109,6 +114,12 @@ def _build_parser() -> argparse.ArgumentParser:
             "Path to a JSON file containing 'tasks' and 'responders' payloads. "
             "Used when running in production mode."
         ),
+    )
+    parser.add_argument(
+        "--refresh-interval",
+        type=float,
+        default=5.0,
+        help="Seconds between GUI refreshes when running in --gui mode",
     )
     return parser
 
@@ -182,6 +193,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.demo:
         run_demo_mode()
         return 0
+
+    if args.gui:
+        from hq_command import gui
+
+        gui_argv = ["--config", str(args.config), "--refresh-interval", str(args.refresh_interval)]
+        return gui.main(gui_argv)
 
     return run_production_mode(args.config)
 
