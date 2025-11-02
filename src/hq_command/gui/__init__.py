@@ -53,7 +53,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     qt_argv = list(sys.argv if argv is None else [sys.argv[0], *argv])
     app = QtWidgets.QApplication(qt_argv)
     window = HQMainWindow(controller)
-    if hasattr(window, "show"):
+    if hasattr(window, "showMaximized"):
+        window.showMaximized()
+    elif hasattr(window, "show"):
         window.show()
 
     timer = QtCore.QTimer()

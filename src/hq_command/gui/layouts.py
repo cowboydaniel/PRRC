@@ -195,24 +195,24 @@ class MissionCanvas(QWidget):
         self.left_panel = QWidget()
         self.left_layout = QVBoxLayout(self.left_panel)
         self.left_layout.setContentsMargins(
+            theme.SPACING_LG,
+            theme.SPACING_LG,
             theme.SPACING_MD,
-            theme.SPACING_MD,
-            theme.SPACING_SM,
-            theme.SPACING_MD,
+            theme.SPACING_LG,
         )
-        self.left_layout.setSpacing(theme.SPACING_MD)
+        self.left_layout.setSpacing(theme.SPACING_LG)
         self.splitter.addWidget(self.left_panel)
 
         # Right panel (45%)
         self.right_panel = QWidget()
         self.right_layout = QVBoxLayout(self.right_panel)
         self.right_layout.setContentsMargins(
-            theme.SPACING_SM,
             theme.SPACING_MD,
-            theme.SPACING_MD,
-            theme.SPACING_MD,
+            theme.SPACING_LG,
+            theme.SPACING_LG,
+            theme.SPACING_LG,
         )
-        self.right_layout.setSpacing(theme.SPACING_MD)
+        self.right_layout.setSpacing(theme.SPACING_LG)
         self.splitter.addWidget(self.right_panel)
 
         # Set initial splitter sizes (55%/45%)
