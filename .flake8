@@ -1,0 +1,87 @@
+# PRRC OS Suite - Flake8 Configuration
+# Phase 0: Linting Standards
+# Last Updated: 2025-11-02
+
+[flake8]
+# ============================================================================
+# Code Style
+# ============================================================================
+max-line-length = 100
+max-complexity = 10
+indent-size = 4
+
+# ============================================================================
+# Exclude Patterns
+# ============================================================================
+exclude =
+    .git,
+    __pycache__,
+    .pytest_cache,
+    .mypy_cache,
+    .ruff_cache,
+    build,
+    dist,
+    *.egg-info,
+    venv,
+    .venv,
+    env,
+    ENV,
+    .tox,
+    .nox,
+    docs/_build,
+    samples/missions
+
+# ============================================================================
+# Error Codes
+# ============================================================================
+# Select specific error codes to enforce
+# E: pycodestyle errors
+# W: pycodestyle warnings
+# F: pyflakes errors
+# C: mccabe complexity
+# N: pep8-naming
+
+# Ignore specific errors:
+ignore =
+    # E203: Whitespace before ':' (conflicts with black)
+    E203,
+    # W503: Line break before binary operator (conflicts with black)
+    W503,
+    # E501: Line too long (handled by max-line-length)
+    # E501,
+
+# ============================================================================
+# Per-file Ignores
+# ============================================================================
+per-file-ignores =
+    # __init__.py files can have unused imports
+    __init__.py:F401,F403
+    # Test files can have unused arguments, redefined outer names
+    tests/*:F401,F811
+    # conftest.py can have redefined outer names
+    conftest.py:F811
+
+# ============================================================================
+# Inline Comments
+# ============================================================================
+# Allow inline comments for specific line ignores
+inline-quotes = double
+
+# ============================================================================
+# Documentation
+# ============================================================================
+# Enforce docstring presence (requires flake8-docstrings plugin)
+# docstring-convention = google
+
+# ============================================================================
+# Import Order (requires flake8-import-order plugin)
+# ============================================================================
+# import-order-style = google
+# application-import-names = hq_command,fieldops,bridge,prrc_cli
+
+# ============================================================================
+# Notes
+# ============================================================================
+# Run: flake8 src/ tests/
+# Install plugins: pip install flake8-docstrings flake8-import-order
+# Compatible with black formatter

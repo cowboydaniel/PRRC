@@ -13,6 +13,9 @@ authors = [
 requires-python = ">=3.9"
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
@@ -20,12 +23,139 @@ dependencies = []
 
 [project.urls]
 Homepage = "https://example.org/prrc/prrc-os-suite"
+Documentation = "https://example.org/prrc/prrc-os-suite/docs"
+Repository = "https://github.com/prrc/prrc-os-suite"
+"Bug Tracker" = "https://github.com/prrc/prrc-os-suite/issues"
 
 [project.scripts]
 prrc = "prrc_cli:main"
+hq-gui = "hq_command.gui:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+
+# ============================================================================
+# Black Configuration (Code Formatter)
+# ============================================================================
+[tool.black]
+line-length = 100
+target-version = ["py39", "py310", "py311"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # Directories
+  \.git
+  | \.mypy_cache
+  | \.pytest_cache
+  | \.ruff_cache
+  | __pycache__
+  | build
+  | dist
+  | venv
+  | \.venv
+)/
+'''
+
+# ============================================================================
+# isort Configuration (Import Sorting)
+# ============================================================================
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+src_paths = ["src", "tests"]
+known_first_party = ["hq_command", "fieldops", "bridge", "prrc_cli"]
+known_third_party = ["pytest", "yaml"]
+
+# ============================================================================
+# pytest Configuration
+# ============================================================================
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-ra",              # Show summary of all test outcomes
+    "--strict-markers", # Enforce marker registration
+    "--strict-config",  # Enforce configuration validation
+    "--tb=short",       # Shorter traceback format
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "gui: marks tests requiring Qt GUI",
+]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+# ============================================================================
+# Coverage Configuration
+# ============================================================================
+[tool.coverage.run]
+source = ["src"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/.venv/*",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "def __str__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+# ============================================================================
+# Ruff Configuration (Fast Linter)
+# ============================================================================
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+]
+ignore = [
+    "E203", # Whitespace before ':' (conflicts with black)
+    "E501", # Line too long (handled by black)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "F403"]
+"tests/*" = ["F401", "F811"]

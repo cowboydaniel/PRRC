@@ -1,0 +1,30 @@
+# PRRC OS Suite - Bandit Configuration
+# Phase 0: Security Scanning Configuration
+# Last Updated: 2025-11-02
+
+[bandit]
+# Directories to exclude from scanning
+exclude_dirs = [
+    '/tests',
+    '/build',
+    '/dist',
+    '/.venv',
+    '/venv',
+    '/__pycache__',
+    '/.pytest_cache',
+    '/.mypy_cache',
+]
+
+# Test IDs to skip (comma-separated)
+# B101: assert_used (common in tests, handled by excluding test dirs)
+# B601: paramiko_calls (if using paramiko for SSH)
+skips = []
+
+# Test IDs to run (leave empty to run all)
+tests = []
+
+# Severity level to report (low, medium, high)
+level = low
+
+# Confidence level to report (low, medium, high)
+confidence = medium
