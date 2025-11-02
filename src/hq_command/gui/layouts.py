@@ -71,7 +71,8 @@ class NavigationRail(QFrame):
             button.setText(f"{section.value[2]}\n{section.value[1]}")
             button.setCheckable(True)
             button.setToolTip(section.value[1])
-            button.setMinimumHeight(theme.MIN_TOUCH_TARGET + theme.SPACING_MD)
+            button.setMinimumHeight(theme.MIN_TOUCH_TARGET + theme.SPACING_LG)
+            button.setMinimumWidth(theme.NAV_RAIL_WIDTH - theme.SPACING_SM * 2)
             button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             button.clicked.connect(
                 lambda checked, s=section.value[0]: self._on_nav_clicked(s)
@@ -122,9 +123,9 @@ class GlobalStatusBar(QFrame):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(
             theme.SPACING_MD,
-            theme.SPACING_SM,
             theme.SPACING_MD,
-            theme.SPACING_SM,
+            theme.SPACING_MD,
+            theme.SPACING_MD,
         )
         layout.setSpacing(theme.SPACING_MD)
 
