@@ -26,7 +26,8 @@ from .qt_compat import (
     QRect,
     QSize,
     Qt,
-    QtCore,
+    QPolygonF,
+    QPointF,
 )
 from .components import Card, Heading, Caption
 from .styles import theme
@@ -310,23 +311,6 @@ class Sparkline(QWidget):
 
         # Create polygon for fill
         fill_points = [(margin, rect.height() - margin)] + points + [(rect.width() - margin, rect.height() - margin)]
-
-        # Try to import QPolygonF - it's in QtGui or QtCore depending on Qt version
-        try:
-            from PySide6.QtCore import QPolygonF, QPointF
-        except ImportError:
-            try:
-                from PyQt6.QtCore import QPolygonF, QPointF
-            except ImportError:
-                try:
-                    from PySide2.QtCore import QPolygonF, QPointF
-                except ImportError:
-                    try:
-                        from PyQt5.QtCore import QPolygonF, QPointF
-                    except ImportError:
-                        # Fallback - just draw lines without fill
-                        QPolygonF = None
-                        QPointF = None
 
         if QPolygonF and QPointF:
             polygon = QPolygonF([QPointF(x, y) for x, y in fill_points])

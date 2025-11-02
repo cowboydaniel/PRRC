@@ -22,6 +22,7 @@ from .qt_compat import (
     QHBoxLayout,
     QStackedWidget,
     QLabel,
+    qt_exec,
 )
 
 # Phase 1 imports
@@ -547,7 +548,7 @@ class HQMainWindow(QMainWindow):
         defer_action = menu.addAction("Defer...")
         defer_action.triggered.connect(lambda: self._show_deferral_dialog("TASK-001"))
 
-        menu.exec_(self.task_pane.mapToGlobal(position))
+        qt_exec(menu, self.task_pane.mapToGlobal(position))
 
     def _show_responder_context_menu(self, position):
         """Show context menu for responders (3-19)."""
@@ -564,7 +565,7 @@ class HQMainWindow(QMainWindow):
         profile_action = menu.addAction("Edit Profile...")
         profile_action.triggered.connect(lambda: self._show_profile_dialog({}))
 
-        menu.exec_(self.roster_pane.mapToGlobal(position))
+        qt_exec(menu, self.roster_pane.mapToGlobal(position))
 
     # -------------------------------------------------------------------------
     # Search and Filter (3-14, 3-15, 3-16)
@@ -661,7 +662,7 @@ class HQMainWindow(QMainWindow):
         )
 
         dialog.assignment_confirmed.connect(self._on_assignment_confirmed)
-        dialog.exec_()
+        qt_exec(dialog)
 
     def _generate_unit_recommendations(
         self,
@@ -731,7 +732,7 @@ class HQMainWindow(QMainWindow):
         """Show task creation dialog (3-05)."""
         dialog = TaskCreationDialog(self)
         dialog.task_created.connect(self._on_task_created)
-        dialog.exec_()
+        qt_exec(dialog)
 
     def _on_task_created(self, task_data: Dict[str, Any]):
         """Handle task creation (3-05)."""
@@ -753,7 +754,7 @@ class HQMainWindow(QMainWindow):
         """Show task edit dialog (3-06)."""
         dialog = TaskEditDialog(task_data, self)
         dialog.task_updated.connect(self._on_task_updated)
-        dialog.exec_()
+        qt_exec(dialog)
 
     def _on_task_updated(self, task_id: str, updated_data: Dict[str, Any]):
         """Handle task update (3-06)."""
@@ -774,7 +775,7 @@ class HQMainWindow(QMainWindow):
         """Show task escalation dialog (3-07)."""
         dialog = TaskEscalationDialog(task_id, self)
         dialog.escalation_confirmed.connect(self._on_escalation_confirmed)
-        dialog.exec_()
+        qt_exec(dialog)
 
     def _on_escalation_confirmed(self, task_id: str, reason: str):
         """Handle task escalation (3-07)."""
@@ -802,7 +803,7 @@ class HQMainWindow(QMainWindow):
         """Show task deferral dialog (3-08)."""
         dialog = TaskDeferralDialog(task_id, self)
         dialog.deferral_confirmed.connect(self._on_deferral_confirmed)
-        dialog.exec_()
+        qt_exec(dialog)
 
     def _on_deferral_confirmed(self, task_id: str, reason: str, duration: int):
         """Handle task deferral (3-08)."""
@@ -834,7 +835,7 @@ class HQMainWindow(QMainWindow):
         )
 
         dialog.status_changed.connect(self._on_status_changed)
-        dialog.exec_()
+        qt_exec(dialog)
 
     def _on_status_changed(self, unit_id: str, changes: Dict[str, Any]):
         """Handle responder status change (3-09)."""
@@ -855,7 +856,7 @@ class HQMainWindow(QMainWindow):
         """Show responder profile dialog (3-10)."""
         dialog = ResponderProfileDialog(unit_data, self)
         dialog.profile_updated.connect(self._on_profile_updated)
-        dialog.exec_()
+        qt_exec(dialog)
 
     def _on_profile_updated(self, unit_id: str, updates: Dict[str, Any]):
         """Handle responder profile update (3-10)."""
@@ -877,7 +878,7 @@ class HQMainWindow(QMainWindow):
         dialog = CallIntakeDialog(self)
         dialog.call_submitted.connect(self._on_call_submitted)
         dialog.task_generated.connect(self._on_task_created)
-        dialog.exec_()
+        qt_exec(dialog)
 
     def _on_call_submitted(self, call_data: Dict[str, Any]):
         """Handle call submission (3-11)."""
