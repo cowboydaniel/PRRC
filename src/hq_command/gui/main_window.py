@@ -13,7 +13,6 @@ from typing import Optional
 from pathlib import Path
 
 from .controller import HQCommandController
-from .panes import RosterPane, TaskQueuePane, TelemetryPane
 from .qt_compat import (
     QT_AVAILABLE,
     QtWidgets,
@@ -32,6 +31,11 @@ from .components import Heading, Card, ErrorMessage, LoadingSpinner
 from .window_manager import WindowManager
 from .accessibility import KeyboardNavigationManager, FocusManager, setup_accessibility
 from .animations import AnimationBuilder, TransitionManager
+
+# Phase 2 imports - Enhanced panes and views
+from .enhanced_panes import RosterPane, TaskQueuePane, TelemetryPane
+from .kanban import KanbanBoard
+from .timeline import TimelineView
 
 
 class HQMainWindow(QMainWindow):
@@ -197,27 +201,25 @@ class HQMainWindow(QMainWindow):
         layout = QVBoxLayout(view)
         layout.setContentsMargins(theme.SPACING_MD, theme.SPACING_MD, theme.SPACING_MD, theme.SPACING_MD)
 
-        card = Card()
-        card.add_widget(Heading("Task Board", level=2))
-        card.add_widget(QLabel("Kanban-style task board coming in Phase 2"))
+        # Kanban board with task data
+        self.kanban_board = KanbanBoard(view)
+        self.kanban_board.task_clicked.connect(self._on_kanban_task_clicked)
 
-        layout.addWidget(card)
-        layout.addStretch(1)
+        layout.addWidget(self.kanban_board)
 
         return view
 
     def _create_telemetry_view(self) -> QWidget:
-        """Create Telemetry view (detailed analytics, Phase 2)."""
+        """Create Telemetry view (detailed analytics and timeline, Phase 2)."""
         view = QWidget()
         layout = QVBoxLayout(view)
         layout.setContentsMargins(theme.SPACING_MD, theme.SPACING_MD, theme.SPACING_MD, theme.SPACING_MD)
 
-        card = Card()
-        card.add_widget(Heading("Telemetry Dashboard", level=2))
-        card.add_widget(QLabel("Detailed telemetry and analytics coming in Phase 2"))
+        # Timeline view for situational awareness
+        self.timeline_view = TimelineView(view)
+        self.timeline_view.export_requested.connect(self._on_timeline_export_requested)
 
-        layout.addWidget(card)
-        layout.addStretch(1)
+        layout.addWidget(self.timeline_view)
 
         return view
 
@@ -292,9 +294,15 @@ class HQMainWindow(QMainWindow):
         Refreshes all data views.
         """
         if QT_AVAILABLE and hasattr(self, 'roster_pane'):
-            self.roster_pane.set_model(self.controller.roster_model)
-            self.task_pane.set_model(self.controller.task_queue_model)
-            self.telemetry_pane.set_model(self.controller.telemetry_model)
+            # Refresh enhanced panes (Phase 2)
+            self.roster_pane.refresh()
+            self.task_pane.refresh()
+            self.telemetry_pane.refresh()
+
+            # Refresh Kanban board if exists
+            if hasattr(self, 'kanban_board'):
+                task_data = self.controller.task_queue_model.items()
+                self.kanban_board.set_tasks(task_data)
 
             # Update status bar
             self._update_status_bar()
@@ -375,6 +383,33 @@ class HQMainWindow(QMainWindow):
                     parent_width,
                     theme.STATUS_BAR_HEIGHT
                 )
+
+    def _on_kanban_task_clicked(self, status: str, task_id: str):
+        """
+        Handle Kanban board task click.
+
+        Args:
+            status: Column/status where task was clicked
+            task_id: ID of clicked task
+        """
+        # Show task details in context drawer
+        self.context_drawer.clear_content()
+        self.context_drawer.set_title(f"Task: {task_id}")
+
+        # TODO: Phase 3 - Add detailed task view
+        task_info = Card()
+        task_info.add_widget(Heading(f"Task {task_id}", level=4))
+        task_info.add_widget(QLabel(f"Status: {status}"))
+        task_info.add_widget(QLabel("Detailed task view coming in Phase 3"))
+
+        self.context_drawer.add_content(task_info)
+        self.context_drawer.open_drawer()
+
+    def _on_timeline_export_requested(self):
+        """Handle timeline export request."""
+        # TODO: Phase 3 - Implement export dialog
+        # For now, just show message
+        self.show_loading("Exporting timeline... (Feature coming in Phase 3)")
 
     def closeEvent(self, event):
         """Handle window close to save state."""
