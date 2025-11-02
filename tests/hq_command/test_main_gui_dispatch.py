@@ -16,7 +16,7 @@ def config_file(tmp_path: Path) -> Path:
 
 
 def test_main_launches_gui(monkeypatch: pytest.MonkeyPatch, config_file: Path) -> None:
-    """Verify that ``hq_command.main`` dispatches to the GUI launcher when requested."""
+    """Verify that ``hq_command.main`` dispatches to the GUI launcher by default."""
 
     captured: dict[str, list[str] | int] = {}
 
@@ -28,7 +28,6 @@ def test_main_launches_gui(monkeypatch: pytest.MonkeyPatch, config_file: Path) -
     monkeypatch.setattr("hq_command.gui.main", fake_gui_main)
 
     exit_code = hq_main.main([
-        "--gui",
         "--config",
         str(config_file),
         "--refresh-interval",
