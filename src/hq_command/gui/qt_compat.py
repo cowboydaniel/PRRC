@@ -2,21 +2,64 @@
 
 The repository does not ship with Qt bindings, so this module provides a very
 small compatibility layer that mimics the interfaces used by the GUI package.
-When PyQt5 (or a compatible binding) is installed it will be imported and the
-real classes exposed.  When bindings are unavailable a light-weight shim is
+When a supported Qt binding (such as PySide6 or PyQt5) is installed it will be
+imported and the real classes exposed.  When bindings are unavailable a
+light-weight shim is
 provided so the controller logic can still be exercised in unit tests without a
 GUI event loop.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Iterable, List, Optional
+from importlib import import_module
+from types import ModuleType
+from typing import Any, Iterable, List, Optional, Sequence
 
-try:  # pragma: no cover - executed only when Qt bindings are available
-    from PyQt5 import QtCore, QtWidgets  # type: ignore
+SUPPORTED_QT_BINDINGS: Sequence[str] = (
+    "PySide6",
+    "PyQt6",
+    "PySide2",
+    "PyQt5",
+)
 
-    QT_AVAILABLE = True
-except Exception:  # pragma: no cover - fall back to shim used in tests
+_REQUIRED_CORE_ATTRS = ("QAbstractListModel", "QModelIndex", "QObject", "QTimer")
+_REQUIRED_WIDGET_ATTRS = (
+    "QApplication",
+    "QLabel",
+    "QListView",
+    "QMainWindow",
+    "QVBoxLayout",
+    "QWidget",
+)
+
+
+def _attempt_import(binding: str) -> tuple[ModuleType, ModuleType] | None:
+    try:
+        core_mod = import_module(f"{binding}.QtCore")
+        widgets_mod = import_module(f"{binding}.QtWidgets")
+    except Exception:  # pragma: no cover - binding not available
+        return None
+
+    for attr in _REQUIRED_CORE_ATTRS:
+        if not hasattr(core_mod, attr):
+            return None
+    for attr in _REQUIRED_WIDGET_ATTRS:
+        if not hasattr(widgets_mod, attr):
+            return None
+
+    return core_mod, widgets_mod
+
+
+QT_API: str | None = None
+
+for _binding in SUPPORTED_QT_BINDINGS:  # pragma: no cover - executed when bindings exist
+    _modules = _attempt_import(_binding)
+    if _modules is not None:
+        QtCore, QtWidgets = _modules
+        QT_API = _binding
+        QT_AVAILABLE = True
+        break
+else:  # pragma: no cover - fall back to shim used in tests
     QT_AVAILABLE = False
 
     class _QtNamespace:
@@ -156,4 +199,4 @@ except Exception:  # pragma: no cover - fall back to shim used in tests
     QtCore = _QtCoreModule()
     QtWidgets = _QtWidgetsModule()
 
-__all__ = ["QtCore", "QtWidgets", "QT_AVAILABLE"]
+__all__ = ["QtCore", "QtWidgets", "QT_AVAILABLE", "QT_API", "SUPPORTED_QT_BINDINGS"]

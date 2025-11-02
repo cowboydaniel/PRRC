@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from hq_command import gui as hq_gui
 from hq_command import main as hq_main
 
 
@@ -37,3 +38,17 @@ def test_main_launches_gui(monkeypatch: pytest.MonkeyPatch, config_file: Path) -
     assert exit_code == 42
     assert captured["argv"] == ["--config", str(config_file), "--refresh-interval", "1.5"]
     assert captured["return"] == 42
+
+
+def test_gui_main_errors_without_qt(monkeypatch: pytest.MonkeyPatch, config_file: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Ensure the GUI launcher refuses to run when Qt bindings are missing."""
+
+    monkeypatch.setattr("hq_command.gui.QT_AVAILABLE", False)
+
+    exit_code = hq_gui.main(["--config", str(config_file)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "Qt bindings are required" in captured.err
+    for binding in hq_gui.SUPPORTED_QT_BINDINGS:
+        assert binding in captured.err

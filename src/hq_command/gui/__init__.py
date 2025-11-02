@@ -2,14 +2,13 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 from typing import Any, Sequence
 
 from .controller import HQCommandController
 from .main_window import HQMainWindow
-from .qt_compat import QT_AVAILABLE, QtCore, QtWidgets
+from .qt_compat import QT_AVAILABLE, SUPPORTED_QT_BINDINGS, QtCore, QtWidgets
 
 __all__ = ["HQCommandController", "HQMainWindow", "main"]
 
@@ -43,16 +42,6 @@ def _start_timer(timer: Any) -> None:
         starter()
 
 
-def _cli_dump(controller: HQCommandController) -> None:
-    snapshot = {
-        "roster": controller.roster_model.items(),
-        "task_queue": controller.task_queue_model.items(),
-        "telemetry": controller.telemetry_model.items(),
-    }
-    json.dump(snapshot, sys.stdout, indent=2, sort_keys=True)
-    sys.stdout.write("\n")
-
-
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -62,9 +51,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     controller.load_from_file(config_path)
 
     if not QT_AVAILABLE:
-        sys.stderr.write("Qt bindings are not installed; running in headless snapshot mode.\n")
-        _cli_dump(controller)
-        return 0
+        bindings_list = ", ".join(SUPPORTED_QT_BINDINGS)
+        sys.stderr.write(
+            "Qt bindings are required to launch the HQ Command GUI. "
+            f"Install one of: {bindings_list}.\n"
+        )
+        return 1
 
     qt_argv = list(sys.argv if argv is None else [sys.argv[0], *argv])
     app = QtWidgets.QApplication(qt_argv)
@@ -82,6 +74,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     _connect_timer(timer, _refresh)
     _start_timer(timer)
 
+    exec_method = getattr(app, "exec", None)
+    if callable(exec_method):
+        return exec_method()
     return app.exec_()
 
 
