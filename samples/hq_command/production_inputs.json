@@ -1,0 +1,62 @@
+{
+  "tasks": [
+    {
+      "task_id": "fire-suppression",
+      "priority": 4,
+      "capabilities_required": ["firefighter", "driver"],
+      "min_units": 2,
+      "max_units": 3,
+      "location": "sector-7",
+      "metadata": {
+        "category": "emergency-response",
+        "details": "Deploy suppression team to active blaze"
+      }
+    },
+    {
+      "task_id": "perimeter-scout",
+      "priority": 2,
+      "capabilities_required": ["scout"],
+      "location": "sector-8",
+      "metadata": {
+        "category": "recon"
+      }
+    },
+    {
+      "task_id": "logistics-run",
+      "priority": 1,
+      "capabilities_required": ["driver"],
+      "location": "sector-5",
+      "metadata": {
+        "category": "logistics"
+      }
+    }
+  ],
+  "responders": [
+    {
+      "unit_id": "atlas-1",
+      "capabilities": ["driver", "firefighter"],
+      "max_concurrent_tasks": 1,
+      "location": "sector-7"
+    },
+    {
+      "unit_id": "bravo-4",
+      "capabilities": ["firefighter"],
+      "max_concurrent_tasks": 2,
+      "location": "sector-7"
+    },
+    {
+      "unit_id": "charlie-2",
+      "capabilities": ["scout"],
+      "max_concurrent_tasks": 1,
+      "location": "sector-8"
+    },
+    {
+      "unit_id": "delta-6",
+      "capabilities": ["driver"],
+      "status": "busy",
+      "current_tasks": ["medical-transport"],
+      "max_concurrent_tasks": 1,
+      "location": "sector-5"
+    }
+  ]
+}
