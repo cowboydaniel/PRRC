@@ -97,6 +97,11 @@ def _build_parser() -> argparse.ArgumentParser:
         description="Launch the HQ Command GUI console with optional configuration",
     )
     parser.add_argument(
+        "--gui",
+        action="store_true",
+        help="Launch the HQ Command GUI console instead of writing CLI output",
+    )
+    parser.add_argument(
         "--config",
         type=Path,
         default=_default_config_path(),
