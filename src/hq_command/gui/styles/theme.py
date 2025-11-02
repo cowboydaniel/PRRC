@@ -127,8 +127,8 @@ MIN_TOUCH_TARGET = 44  # Minimum touch target size (glove-friendly)
 # COMPONENT DIMENSIONS
 # =============================================================================
 
-NAV_RAIL_WIDTH = 72  # Navigation rail width
-STATUS_BAR_HEIGHT = 56  # Global status bar height
+NAV_RAIL_WIDTH = 140  # Navigation rail width (wide enough for full menu text)
+STATUS_BAR_HEIGHT = 72  # Global status bar height (tall enough for search bar)
 CONTEXT_DRAWER_WIDTH = 360  # Right-side context drawer width
 PANEL_RESIZE_HANDLE_WIDTH = 4  # Resize handle for split panes
 SCROLLBAR_WIDTH = 12  # Custom scrollbar width
@@ -417,12 +417,11 @@ def component_styles(variant: ThemeVariant = ThemeVariant.LIGHT) -> str:
         color: {PRIMARY_CONTRAST};
         border: none;
         border-radius: {BORDER_RADIUS_MD}px;
-        padding: {SPACING_MD}px;
+        padding: {SPACING_MD}px {SPACING_SM}px;
         min-width: {MIN_TOUCH_TARGET}px;
         min-height: {MIN_TOUCH_TARGET}px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        font-size: {FONT_SIZE_SMALL}pt;
+        text-align: center;
+        font-size: {FONT_SIZE_BODY}pt;
         font-weight: 500;
     }}
 
