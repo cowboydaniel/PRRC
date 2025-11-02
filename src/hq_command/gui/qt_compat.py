@@ -200,3 +200,145 @@ else:  # pragma: no cover - fall back to shim used in tests
     QtWidgets = _QtWidgetsModule()
 
 __all__ = ["QtCore", "QtWidgets", "QT_AVAILABLE", "QT_API", "SUPPORTED_QT_BINDINGS"]
+
+# Re-export commonly used classes for convenience
+# When Qt is available, these come from the real Qt modules
+# When Qt is not available, we provide minimal shims or None
+if QT_AVAILABLE:
+    # QtCore classes
+    QAbstractItemModel = QtCore.QAbstractItemModel
+    QModelIndex = QtCore.QModelIndex
+    QObject = QtCore.QObject
+    QTimer = QtCore.QTimer
+    Qt = QtCore.Qt
+    pyqtSignal = QtCore.Signal if hasattr(QtCore, 'Signal') else QtCore.pyqtSignal
+
+    # QtWidgets classes
+    QWidget = QtWidgets.QWidget
+    QMainWindow = QtWidgets.QMainWindow
+    QLabel = QtWidgets.QLabel
+    QPushButton = QtWidgets.QPushButton
+    QToolButton = QtWidgets.QToolButton
+    QFrame = QtWidgets.QFrame
+    QVBoxLayout = QtWidgets.QVBoxLayout
+    QHBoxLayout = QtWidgets.QHBoxLayout
+    QStackedWidget = QtWidgets.QStackedWidget
+    QSplitter = QtWidgets.QSplitter
+    QScrollArea = QtWidgets.QScrollArea
+    QSizePolicy = QtWidgets.QSizePolicy
+    QLineEdit = QtWidgets.QLineEdit
+    QComboBox = QtWidgets.QComboBox
+    QCheckBox = QtWidgets.QCheckBox
+    QProgressBar = QtWidgets.QProgressBar
+    QDialog = QtWidgets.QDialog
+    QDialogButtonBox = QtWidgets.QDialogButtonBox
+    QTableView = QtWidgets.QTableView
+    QHeaderView = QtWidgets.QHeaderView
+    QStyledItemDelegate = QtWidgets.QStyledItemDelegate
+    QMenu = QtWidgets.QMenu
+    QAction = QtWidgets.QAction if hasattr(QtWidgets, 'QAction') else QtCore.QAction
+
+    # Try to import additional classes that might be in QtWidgets or QtGui
+    try:
+        QShortcut = QtWidgets.QShortcut
+    except AttributeError:
+        from importlib import import_module
+        QtGui = import_module(f"{QT_API}.QtGui")
+        QShortcut = QtGui.QShortcut
+
+    try:
+        QKeySequence = QtCore.QKeySequence if hasattr(QtCore, 'QKeySequence') else QtWidgets.QKeySequence
+    except AttributeError:
+        from importlib import import_module
+        QtGui = import_module(f"{QT_API}.QtGui")
+        QKeySequence = QtGui.QKeySequence
+
+    try:
+        QPainter = None
+        QBrush = None
+        QPen = None
+        QColor = None
+        QRect = None
+        QSize = None
+        QStyleOptionViewItem = None
+        QPropertyAnimation = None
+        QEasingCurve = None
+        QIcon = None
+        QPixmap = None
+        QScreen = None
+
+        from importlib import import_module
+        QtGui = import_module(f"{QT_API}.QtGui")
+        QPainter = QtGui.QPainter
+        QBrush = QtGui.QBrush
+        QPen = QtGui.QPen
+        QColor = QtGui.QColor
+        QIcon = QtGui.QIcon
+        QPixmap = QtGui.QPixmap
+        QScreen = QtGui.QScreen if hasattr(QtGui, 'QScreen') else None
+
+        # Some classes might be in QtCore
+        QRect = QtCore.QRect
+        QSize = QtCore.QSize
+        QPropertyAnimation = QtCore.QPropertyAnimation
+        QEasingCurve = QtCore.QEasingCurve
+
+        # QStyleOptionViewItem is in QtWidgets
+        QStyleOptionViewItem = QtWidgets.QStyleOptionViewItem
+    except (ImportError, AttributeError):
+        pass
+else:
+    # Shim mode - provide minimal implementations
+    QAbstractItemModel = _QtCoreModule.QAbstractListModel
+    QModelIndex = _QtCoreModule.QModelIndex
+    QObject = _QtCoreModule.QObject
+    QTimer = _QtCoreModule.QTimer
+    Qt = _QtCoreModule.Qt
+
+    class _pyqtSignalShim:
+        def __init__(self, *args):
+            pass
+        def connect(self, func):
+            pass
+        def emit(self, *args):
+            pass
+
+    pyqtSignal = _pyqtSignalShim
+
+    QWidget = _QtWidgetsModule.QWidget
+    QMainWindow = _QtWidgetsModule.QMainWindow
+    QLabel = _QtWidgetsModule.QLabel
+    QPushButton = None
+    QToolButton = None
+    QFrame = None
+    QVBoxLayout = _QtWidgetsModule.QVBoxLayout
+    QHBoxLayout = None
+    QStackedWidget = None
+    QSplitter = None
+    QScrollArea = None
+    QSizePolicy = None
+    QLineEdit = None
+    QComboBox = None
+    QCheckBox = None
+    QProgressBar = None
+    QDialog = None
+    QDialogButtonBox = None
+    QTableView = None
+    QHeaderView = None
+    QStyledItemDelegate = None
+    QMenu = None
+    QAction = None
+    QShortcut = None
+    QKeySequence = None
+    QPainter = None
+    QBrush = None
+    QPen = None
+    QColor = None
+    QRect = None
+    QSize = None
+    QStyleOptionViewItem = None
+    QPropertyAnimation = None
+    QEasingCurve = None
+    QIcon = None
+    QPixmap = None
+    QScreen = None
