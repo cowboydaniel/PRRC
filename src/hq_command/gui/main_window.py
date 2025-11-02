@@ -202,6 +202,7 @@ class HQMainWindow(QMainWindow):
         view = QWidget()
         layout = QVBoxLayout(view)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
         # Mission canvas with 2 columns
         canvas = MissionCanvas(view)
@@ -210,7 +211,7 @@ class HQMainWindow(QMainWindow):
         left_container = QWidget()
         left_layout = QVBoxLayout(left_container)
         left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(theme.SPACING_MD)
+        left_layout.setSpacing(theme.SPACING_LG)  # More comfortable spacing between panes
 
         self.roster_pane = RosterPane(self.controller.roster_model, left_container)
         self.task_pane = TaskQueuePane(self.controller.task_queue_model, left_container)
