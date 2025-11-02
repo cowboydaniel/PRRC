@@ -30,10 +30,10 @@
 - [x] Sequence integration through data contracts and mocks, offline cache and sync, hardware-aware polish, and HQ interoperability milestones.
 
 ## Phase 4 – HQ Tasking Engine Rollout
-- [ ] Introduce task and responder models in `src/hq_command/tasking_engine.py` describing constraints, priority, and capability requirements.
-- [ ] Implement scoring and matching logic that allocates tasks to available units, handling conflicts, partial fulfillment, and escalation.
-- [ ] Emit structured results with assignments, deferred tasks, and audit metadata exposed via an API/service layer for FieldOps synchronization.
-- [ ] Create tests that simulate mixed-priority queues and responder availability scenarios to verify deterministic scheduling and error handling.
+- [x] Introduce task and responder models in `src/hq_command/tasking_engine.py` describing constraints, priority, and capability requirements.
+- [x] Implement scoring and matching logic that allocates tasks to available units, handling conflicts, partial fulfillment, and escalation.
+- [x] Emit structured results with assignments, deferred tasks, and audit metadata exposed via an API/service layer for FieldOps synchronization.
+- [x] Create tests that simulate mixed-priority queues and responder availability scenarios to verify deterministic scheduling and error handling.
 
 ## Phase 5 – Bridge Communications & Compliance
 - [ ] Implement protocol adapters in `src/bridge/comms_router.py` (REST, MQ, secure file drop) with configurable endpoints, mutual TLS, and payload signing.
