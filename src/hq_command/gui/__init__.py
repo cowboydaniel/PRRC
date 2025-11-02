@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 from typing import Any, Sequence
@@ -43,16 +42,6 @@ def _start_timer(timer: Any) -> None:
         starter()
 
 
-def _cli_dump(controller: HQCommandController) -> None:
-    snapshot = {
-        "roster": controller.roster_model.items(),
-        "task_queue": controller.task_queue_model.items(),
-        "telemetry": controller.telemetry_model.items(),
-    }
-    json.dump(snapshot, sys.stdout, indent=2, sort_keys=True)
-    sys.stdout.write("\n")
-
-
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -62,9 +51,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     controller.load_from_file(config_path)
 
     if not QT_AVAILABLE:
-        sys.stderr.write("Qt bindings are not installed; running in headless snapshot mode.\n")
-        _cli_dump(controller)
-        return 0
+        sys.stderr.write(
+            "Qt bindings are required to launch the HQ Command GUI. "
+            "Install PyQt5 or PySide2 to continue.\n"
+        )
+        return 1
 
     qt_argv = list(sys.argv if argv is None else [sys.argv[0], *argv])
     app = QtWidgets.QApplication(qt_argv)
