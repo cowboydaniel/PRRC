@@ -94,12 +94,7 @@ def _build_parser() -> argparse.ArgumentParser:
     """Create the CLI parser for the HQ Command tasking engine."""
 
     parser = argparse.ArgumentParser(
-        description="Run the HQ Command tasking engine in production or demo mode"
-    )
-    parser.add_argument(
-        "--demo",
-        action="store_true",
-        help="Run with canned demo data and human-readable output",
+        description="Launch the HQ Command GUI console with optional configuration",
     )
     parser.add_argument(
         "--config",
@@ -107,8 +102,14 @@ def _build_parser() -> argparse.ArgumentParser:
         default=_default_config_path(),
         help=(
             "Path to a JSON file containing 'tasks' and 'responders' payloads. "
-            "Used when running in production mode."
+            "Used to seed the GUI roster, queue, and telemetry panes."
         ),
+    )
+    parser.add_argument(
+        "--refresh-interval",
+        type=float,
+        default=5.0,
+        help="Seconds between GUI refreshes while reloading configuration data",
     )
     return parser
 
@@ -179,11 +180,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
 
-    if args.demo:
-        run_demo_mode()
-        return 0
+    from hq_command import gui
 
-    return run_production_mode(args.config)
+    gui_argv = ["--config", str(args.config), "--refresh-interval", str(args.refresh_interval)]
+    return gui.main(gui_argv)
 
 
 if __name__ == "__main__":

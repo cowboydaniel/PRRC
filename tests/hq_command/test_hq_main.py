@@ -3,8 +3,6 @@ from __future__ import annotations
 import io
 import json
 from pathlib import Path
-from unittest.mock import patch
-
 import pytest
 
 from hq_command import main as hq_main
@@ -61,16 +59,23 @@ def test_run_demo_mode_prints_human_readable(capsys: pytest.CaptureFixture[str])
     assert "Audit metadata:" in captured.out
 
 
-def test_main_dispatches_to_demo_mode() -> None:
-    with patch.object(hq_main, "run_demo_mode") as mock_demo:
-        exit_code = hq_main.main(["--demo"])
-    assert exit_code == 0
-    mock_demo.assert_called_once_with()
+def test_main_defaults_to_gui(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, list[str] | int] = {}
 
+    def fake_gui_main(argv: list[str] | None = None) -> int:
+        captured["argv"] = [] if argv is None else list(argv)
+        captured["return"] = 0
+        return 0
 
-def test_main_uses_production_mode(sample_payload: Path) -> None:
-    with patch.object(hq_main, "run_production_mode") as mock_prod:
-        mock_prod.return_value = 0
-        exit_code = hq_main.main(["--config", str(sample_payload)])
+    monkeypatch.setattr("hq_command.gui.main", fake_gui_main)
+
+    exit_code = hq_main.main([])
+
     assert exit_code == 0
-    mock_prod.assert_called_once_with(sample_payload)
+    assert captured["argv"] == [
+        "--config",
+        str(hq_main._default_config_path()),
+        "--refresh-interval",
+        "5.0",
+    ]
+    assert captured["return"] == 0
