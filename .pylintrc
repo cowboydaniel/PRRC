@@ -125,7 +125,7 @@ contextmanager-decorators=contextlib.contextmanager
 
 # Ignore Qt dynamic attributes
 ignored-classes=
-    PyQt5,PyQt6,PySide2,PySide6,
+    PySide6,
     QtCore,QtWidgets,QtGui,
     QObject,QMainWindow,QWidget,QApplication
 

@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("PySide6.QtWidgets")
+
 import fieldops.main as fieldops_main
 
 

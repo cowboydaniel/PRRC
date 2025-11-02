@@ -11,7 +11,6 @@ from typing import Any, Callable, Optional, List, Dict
 from enum import Enum
 
 from .qt_compat import (
-    QT_AVAILABLE,
     QWidget,
     QTableView,
     QHeaderView,

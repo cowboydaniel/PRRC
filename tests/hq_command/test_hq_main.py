@@ -60,6 +60,8 @@ def test_run_demo_mode_prints_human_readable(capsys: pytest.CaptureFixture[str])
 
 
 def test_main_defaults_to_gui(monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("PySide6.QtWidgets")
+
     captured: dict[str, list[str] | int] = {}
 
     def fake_gui_main(argv: list[str] | None = None) -> int:

@@ -55,7 +55,7 @@ docs/
 ### Architecture
 1. [HQ Command Architecture](hq_command_gui_design.md) - HQ Command GUI components
 2. [FieldOps Architecture](fieldops_gui_style.md) - FieldOps GUI reference implementation
-3. [Qt Compatibility](../src/hq_command/gui/qt_compat.py) - Multi-Qt-binding support
+3. [PySide6 Compatibility Helpers](../src/hq_command/gui/qt_compat.py) - Centralized PySide6 imports
 
 ---
 
@@ -162,7 +162,7 @@ mkdocs build
 - [Development Standards](development_standards.md)
 - [Testing Guide](../tests/README.md)
 - [Phase 0 Audit](phase_0_audit.md)
-- [Qt Compatibility Layer](../src/hq_command/gui/qt_compat.py)
+- [PySide6 Compatibility Layer](../src/hq_command/gui/qt_compat.py)
 
 ### For Designers
 - [HQ Command GUI Design](hq_command_gui_design.md)

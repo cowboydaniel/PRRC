@@ -13,7 +13,6 @@ from typing import List, Optional, Tuple
 from enum import Enum
 
 from .qt_compat import (
-    QT_AVAILABLE,
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -112,9 +111,6 @@ class GaugeChart(QWidget):
 
     def paintEvent(self, event) -> None:
         """Paint the gauge based on style."""
-        if not QT_AVAILABLE:
-            return
-
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
@@ -277,7 +273,7 @@ class Sparkline(QWidget):
 
     def paintEvent(self, event) -> None:
         """Paint the sparkline."""
-        if not QT_AVAILABLE or not self._data:
+        if not self._data:
             return
 
         painter = QPainter(self)

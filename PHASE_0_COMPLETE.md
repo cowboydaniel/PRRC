@@ -16,7 +16,7 @@ Phase 0 establishes the foundational infrastructure for HQ Command GUI developme
 ### ✅ 0-00: Environment Validation
 - Python 3.11.14 installed (exceeds minimum requirement of ≥3.9)
 - Python path validated: `/usr/local/bin/python3`
-- Qt binding strategy documented (PySide6 primary, fallback to shim mode)
+- PySide6 binding strategy documented (single supported GUI binding)
 - Directory permissions verified
 - System requirements documented
 
@@ -29,7 +29,7 @@ Phase 0 establishes the foundational infrastructure for HQ Command GUI developme
 
 ### ✅ 0-02: Dependency Management
 - **Created:** `requirements.txt` with pinned production dependencies
-  - PySide6 ≥6.6.0,<7.0.0 (primary Qt binding)
+  - PySide6 ≥6.6.0,<7.0.0 (sole GUI binding)
   - PyYAML ≥6.0.2,<7.0.0 (configuration parsing)
 - **Created:** `requirements-dev.txt` with development dependencies
   - Testing: pytest, pytest-cov, pytest-qt
@@ -68,7 +68,7 @@ Phase 0 establishes the foundational infrastructure for HQ Command GUI developme
 - Pytest configuration validated in `pyproject.toml`
 - Test markers defined (slow, integration, gui)
 - Coverage configuration established (80% target)
-- Qt shim testing infrastructure verified (conftest.py)
+- PySide6 testing infrastructure verified (requires real bindings)
 - **Created:** `tests/README.md` - Comprehensive testing documentation
 
 ### ✅ 0-07: Documentation Framework
