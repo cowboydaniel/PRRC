@@ -233,10 +233,19 @@ if QT_AVAILABLE:
     QDialog = QtWidgets.QDialog
     QDialogButtonBox = QtWidgets.QDialogButtonBox
     QTableView = QtWidgets.QTableView
+    QTableWidget = QtWidgets.QTableWidget
+    QTableWidgetItem = QtWidgets.QTableWidgetItem
     QHeaderView = QtWidgets.QHeaderView
+    QAbstractItemView = QtWidgets.QAbstractItemView
     QStyledItemDelegate = QtWidgets.QStyledItemDelegate
     QMenu = QtWidgets.QMenu
     QAction = QtWidgets.QAction if hasattr(QtWidgets, 'QAction') else QtCore.QAction
+    QTextEdit = QtWidgets.QTextEdit
+    QSpinBox = QtWidgets.QSpinBox
+    QGroupBox = QtWidgets.QGroupBox
+    QGridLayout = QtWidgets.QGridLayout
+    QListWidget = QtWidgets.QListWidget
+    QListWidgetItem = QtWidgets.QListWidgetItem
 
     # Try to import additional classes that might be in QtWidgets or QtGui
     try:
@@ -324,10 +333,19 @@ else:
     QDialog = None
     QDialogButtonBox = None
     QTableView = None
+    QTableWidget = None
+    QTableWidgetItem = None
     QHeaderView = None
+    QAbstractItemView = None
     QStyledItemDelegate = None
     QMenu = None
     QAction = None
+    QTextEdit = None
+    QSpinBox = None
+    QGroupBox = None
+    QGridLayout = None
+    QListWidget = None
+    QListWidgetItem = None
     QShortcut = None
     QKeySequence = None
     QPainter = None
