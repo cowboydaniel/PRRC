@@ -14,6 +14,7 @@ from pathlib import Path
 
 from .controller import HQCommandController
 from .qt_compat import (
+    Qt,
     QtWidgets,
     QWidget,
     QMainWindow,
