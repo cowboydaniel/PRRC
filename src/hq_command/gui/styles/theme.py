@@ -259,6 +259,30 @@ class Theme:
 
 
 # =============================================================================
+# DEFAULT THEME TOKENS
+# =============================================================================
+
+# The GUI currently initializes using the light theme.  Many widgets import
+# individual color tokens directly from this module, so we expose convenient
+# aliases that map to the active light theme configuration.  This keeps
+# component code expressive (e.g. ``theme.TEXT_SECONDARY``) while still pulling
+# values from the centralized theme builder above.
+DEFAULT_THEME = Theme(ThemeVariant.LIGHT)
+
+TEXT_PRIMARY = DEFAULT_THEME.get_color("text_primary")
+TEXT_SECONDARY = DEFAULT_THEME.get_color("text_secondary")
+TEXT_TERTIARY = DEFAULT_THEME.get_color("text_tertiary")
+
+BACKGROUND_PRIMARY = DEFAULT_THEME.get_color("background")
+BACKGROUND_SECONDARY = DEFAULT_THEME.get_color("surface")
+SURFACE_ELEVATED = DEFAULT_THEME.get_color("surface_elevated")
+
+BORDER_COLOR = DEFAULT_THEME.get_color("border")
+BORDER_COLOR_STRONG = DEFAULT_THEME.get_color("border_strong")
+DIVIDER_COLOR = DEFAULT_THEME.get_color("divider")
+
+
+# =============================================================================
 # THEME BUILDER FUNCTIONS
 # =============================================================================
 

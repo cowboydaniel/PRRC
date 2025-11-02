@@ -22,6 +22,15 @@ from .theme import (
     NEUTRAL_100,
     SURFACE_LIGHT,
     SURFACE_DARK,
+    BACKGROUND_PRIMARY,
+    BACKGROUND_SECONDARY,
+    SURFACE_ELEVATED,
+    BORDER_COLOR,
+    BORDER_COLOR_STRONG,
+    DIVIDER_COLOR,
+    TEXT_PRIMARY,
+    TEXT_SECONDARY,
+    TEXT_TERTIARY,
     # Typography
     FONT_FAMILY,
     FONT_SIZE_H1,
@@ -58,6 +67,7 @@ from .theme import (
     focus_ring_stylesheet,
     Theme,
     ThemeVariant,
+    DEFAULT_THEME,
 )
 
 __all__ = [
@@ -77,6 +87,15 @@ __all__ = [
     "NEUTRAL_100",
     "SURFACE_LIGHT",
     "SURFACE_DARK",
+    "BACKGROUND_PRIMARY",
+    "BACKGROUND_SECONDARY",
+    "SURFACE_ELEVATED",
+    "BORDER_COLOR",
+    "BORDER_COLOR_STRONG",
+    "DIVIDER_COLOR",
+    "TEXT_PRIMARY",
+    "TEXT_SECONDARY",
+    "TEXT_TERTIARY",
     # Typography
     "FONT_FAMILY",
     "FONT_SIZE_H1",
@@ -113,4 +132,5 @@ __all__ = [
     "focus_ring_stylesheet",
     "Theme",
     "ThemeVariant",
+    "DEFAULT_THEME",
 ]
