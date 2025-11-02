@@ -107,7 +107,7 @@ Phase 3 of the HQ Command GUI development has been successfully completed, imple
 ### 3-09 to 3-10: Responder Management ✅
 
 **Status:** COMPLETE
-**Implementation:** `workflows.py` - `ResponderStatusDialog`, `ResponderProfileDialog`
+**Implementation:** `workflows.py` - `ResponderStatusDialog`, `ResponderProfileDialog`, `ResponderCreationDialog`
 
 **Features Implemented:**
 - ✅ Responder status change interface (3-09)
@@ -118,12 +118,19 @@ Phase 3 of the HQ Command GUI development has been successfully completed, imple
 - ✅ Capability tag editor
 - ✅ Location update interface
 - ✅ Max concurrent tasks setting
+- ✅ **NEW:** Responder creation dialog (gap fix)
+- ✅ Create new responders with ID, capabilities, location, capacity, initial status
+- ✅ Validation for required fields (unit ID)
+- ✅ Keyboard shortcut: Ctrl+Shift+R
+- ✅ Context menu: "New Responder..." in roster pane
 
 **Technical Details:**
 - Status dropdown with 3 states
 - Fatigue spinbox with validation
 - Comma-separated capability editing
 - Capacity setting (1-10 tasks)
+- ResponderCreationDialog with full form validation
+- Signal: responder_created(dict) with complete responder data
 
 ---
 
@@ -313,7 +320,7 @@ Phase 3 of the HQ Command GUI development has been successfully completed, imple
 
 ### New Files (3 modules)
 
-1. **`src/hq_command/gui/workflows.py`** (~1,050 lines)
+1. **`src/hq_command/gui/workflows.py`** (~1,150 lines)
    - ManualAssignmentDialog
    - TaskCreationDialog
    - TaskEditDialog
@@ -321,6 +328,7 @@ Phase 3 of the HQ Command GUI development has been successfully completed, imple
    - TaskDeferralDialog
    - ResponderStatusDialog
    - ResponderProfileDialog
+   - **ResponderCreationDialog** (NEW)
    - CallIntakeDialog
    - CallCorrelationDialog
    - UnitRecommendation dataclass
@@ -372,13 +380,13 @@ Phase 3 of the HQ Command GUI development has been successfully completed, imple
 | Metric | Count |
 |--------|-------|
 | New Python modules | 3 |
-| Total lines of code added | ~1,860 |
-| Dialog classes created | 8 |
+| Total lines of code added | ~1,960 |
+| Dialog classes created | 9 |
 | Manager classes created | 3 |
 | Component classes created | 6 |
 | Dataclasses created | 2 |
 | Enum types created | 1 |
-| Keyboard shortcuts added | 4 |
+| Keyboard shortcuts added | 5 |
 | Context menu types | 2 |
 | Notification types | 5 |
 | Default filter presets | 4 |

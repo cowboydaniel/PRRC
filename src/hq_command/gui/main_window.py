@@ -47,6 +47,7 @@ from .workflows import (
     TaskDeferralDialog,
     ResponderStatusDialog,
     ResponderProfileDialog,
+    ResponderCreationDialog,
     CallIntakeDialog,
     CallCorrelationDialog,
     UnitRecommendation,
@@ -481,6 +482,10 @@ class HQMainWindow(QMainWindow):
         call_intake_shortcut = QShortcut(QKeySequence("Ctrl+I"), self)
         call_intake_shortcut.activated.connect(self._show_call_intake_dialog)
 
+        # Create new responder (Ctrl+Shift+R)
+        new_responder_shortcut = QShortcut(QKeySequence("Ctrl+Shift+R"), self)
+        new_responder_shortcut.activated.connect(self._show_responder_creation_dialog)
+
         # Show notifications (Ctrl+Shift+N)
         notifications_shortcut = QShortcut(QKeySequence("Ctrl+Shift+N"), self)
         notifications_shortcut.activated.connect(self._show_notifications)
@@ -529,6 +534,11 @@ class HQMainWindow(QMainWindow):
             return
 
         menu = QMenu(self)
+
+        new_responder_action = menu.addAction("New Responder...")
+        new_responder_action.triggered.connect(self._show_responder_creation_dialog)
+
+        menu.addSeparator()
 
         status_action = menu.addAction("Change Status...")
         status_action.triggered.connect(lambda: self._show_status_dialog("UNIT-001"))
@@ -836,6 +846,31 @@ class HQMainWindow(QMainWindow):
         self.notification_manager.add_system_notification(
             "Responder Profile Updated",
             f"{unit_id} profile has been updated",
+        )
+
+        self.notification_badge.set_unread_count(
+            self.notification_panel.get_unread_count()
+        )
+
+        self.refresh()
+
+    def _show_responder_creation_dialog(self):
+        """Show responder creation dialog."""
+        dialog = ResponderCreationDialog(self)
+        dialog.responder_created.connect(self._on_responder_created)
+        qt_exec(dialog)
+
+    def _on_responder_created(self, responder_data: Dict[str, Any]):
+        """Handle new responder creation."""
+        print(f"New responder created: {responder_data}")
+
+        # TODO: Add responder to controller/data model
+        # For now, just notify
+        unit_id = responder_data.get('unit_id', 'Unknown')
+
+        self.notification_manager.add_system_notification(
+            "New Responder Created",
+            f"{unit_id} has been added to the roster",
         )
 
         self.notification_badge.set_unread_count(

@@ -851,6 +851,103 @@ class ResponderProfileDialog(Modal):
         self.accept()
 
 
+class ResponderCreationDialog(Modal):
+    """
+    Create new responder dialog.
+
+    Allows creating a new responder with ID, capabilities, location, and settings.
+    """
+
+    responder_created = pyqtSignal(dict)  # new_responder_data
+
+    def __init__(self, parent: Optional[QWidget] = None):
+        super().__init__("Create New Responder", parent)
+
+        self.setMinimumWidth(500)
+        self._build_ui()
+
+    def _build_ui(self):
+        """Build creation form."""
+        # Unit ID input
+        self.content_layout.addWidget(Heading("Unit Information", level=4))
+        id_layout = QHBoxLayout()
+        id_layout.addWidget(QLabel("Unit ID:"))
+        self.unit_id_input = Input(placeholder="e.g., UNIT-101")
+        id_layout.addWidget(self.unit_id_input)
+        self.content_layout.addLayout(id_layout)
+
+        help_label = QLabel("Enter a unique identifier for this responder")
+        help_label.setStyleSheet("font-size: 11px; color: #666; margin-bottom: 16px;")
+        self.content_layout.addWidget(help_label)
+
+        # Capabilities editor
+        self.content_layout.addWidget(Heading("Capabilities", level=4))
+        caps_label = QLabel("Comma-separated capability tags:")
+        self.content_layout.addWidget(caps_label)
+
+        self.capabilities_input = Input(placeholder="e.g., medical, transport, technical")
+        self.content_layout.addWidget(self.capabilities_input)
+
+        # Location editor
+        self.content_layout.addWidget(Heading("Location", level=4))
+        self.location_input = Input(placeholder="Current location (optional)")
+        self.content_layout.addWidget(self.location_input)
+
+        # Max concurrent tasks
+        self.content_layout.addWidget(Heading("Capacity", level=4))
+        capacity_layout = QHBoxLayout()
+        capacity_layout.addWidget(QLabel("Max Concurrent Tasks:"))
+        self.capacity_spin = QSpinBox()
+        self.capacity_spin.setMinimum(1)
+        self.capacity_spin.setMaximum(10)
+        self.capacity_spin.setValue(3)  # Default to 3
+        capacity_layout.addWidget(self.capacity_spin)
+        capacity_layout.addStretch()
+        self.content_layout.addLayout(capacity_layout)
+
+        # Initial status
+        self.content_layout.addWidget(Heading("Initial Status", level=4))
+        status_layout = QHBoxLayout()
+        status_layout.addWidget(QLabel("Status:"))
+        self.status_select = Select()
+        self.status_select.addItems(["available", "busy", "offline"])
+        status_layout.addWidget(self.status_select)
+        status_layout.addStretch()
+        self.content_layout.addLayout(status_layout)
+
+        self.button_box.accepted.disconnect()
+        self.button_box.accepted.connect(self._create_responder)
+
+    def _create_responder(self):
+        """Validate and create new responder."""
+        unit_id = self.unit_id_input.text().strip()
+
+        # Validation
+        if not unit_id:
+            from .qt_compat import QMessageBox
+            QMessageBox.warning(self, "Validation Error", "Unit ID is required.")
+            return
+
+        capabilities_text = self.capabilities_input.text().strip()
+        capabilities = [cap.strip() for cap in capabilities_text.split(',') if cap.strip()]
+
+        location = self.location_input.text().strip() or None
+
+        new_responder = {
+            'unit_id': unit_id,
+            'capabilities': capabilities,
+            'location': location,
+            'max_concurrent_tasks': self.capacity_spin.value(),
+            'status': self.status_select.currentText(),
+            'fatigue': 0,  # Start fresh
+            'current_task_count': 0,
+            'created_at': datetime.now(timezone.utc).isoformat(),
+        }
+
+        self.responder_created.emit(new_responder)
+        self.accept()
+
+
 # =============================================================================
 # CALL INTAKE (3-11 to 3-13)
 # =============================================================================
