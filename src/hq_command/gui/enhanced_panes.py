@@ -30,6 +30,7 @@ from .qt_compat import (
     Qt,
     QtCore,
     pyqtSignal,
+    qt_exec,
 )
 from .controller import RosterListModel, TaskQueueModel, TelemetrySummaryModel
 from .components import Badge, BadgeType, Button, ButtonVariant, Heading, Input, Select
@@ -418,7 +419,7 @@ class TaskQueuePane(QWidget):
         defer_action.triggered.connect(lambda: self.defer_requested.emit(task_id))
         menu.addAction(defer_action)
 
-        menu.exec_(self._table._table_view.viewport().mapToGlobal(position))
+        qt_exec(menu, self._table._table_view.viewport().mapToGlobal(position))
 
 
 # =============================================================================

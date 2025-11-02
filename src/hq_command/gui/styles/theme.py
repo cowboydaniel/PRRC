@@ -12,6 +12,20 @@ from enum import Enum
 from typing import Dict, Any
 from ..qt_compat import QPalette, QColor, QFont
 
+if QFont is None:  # pragma: no cover - executed when Qt bindings missing
+    class _QFontStub:
+        Light = "light"
+        Normal = "normal"
+        Medium = "medium"
+        DemiBold = "demibold"
+        Bold = "bold"
+        Black = "black"
+
+        def __call__(self, *args, **kwargs):
+            raise RuntimeError("Qt font support requires an available Qt binding.")
+
+    QFont = _QFontStub()  # type: ignore[assignment]
+
 
 # =============================================================================
 # COLOR TOKENS
@@ -258,6 +272,9 @@ def build_palette(variant: ThemeVariant = ThemeVariant.LIGHT) -> QPalette:
     Returns:
         QPalette configured with theme colors
     """
+    if QPalette is None or QColor is None:
+        raise RuntimeError("Qt palette support requires an available Qt binding.")
+
     palette = QPalette()
     theme = Theme(variant)
 
