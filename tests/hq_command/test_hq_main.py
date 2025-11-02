@@ -51,14 +51,6 @@ def test_run_production_mode_reports_missing_file(tmp_path: Path) -> None:
     assert "Config file not found" in buffer.getvalue()
 
 
-def test_run_demo_mode_prints_human_readable(capsys: pytest.CaptureFixture[str]) -> None:
-    hq_main.run_demo_mode()
-    captured = capsys.readouterr()
-    assert "HQ Command Tasking Engine Demo" in captured.out
-    assert "Assignments:" in captured.out
-    assert "Audit metadata:" in captured.out
-
-
 def test_main_defaults_to_gui(monkeypatch: pytest.MonkeyPatch) -> None:
     pytest.importorskip("PySide6.QtWidgets")
 

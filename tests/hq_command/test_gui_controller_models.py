@@ -7,11 +7,60 @@ import pytest
 pytest.importorskip("PySide6.QtWidgets")
 
 from hq_command.gui import HQCommandController
-from hq_command.main import build_demo_inputs
 
 
-def test_controller_transforms_demo_inputs() -> None:
-    tasks, responders = build_demo_inputs()
+def test_controller_transforms_inputs() -> None:
+    tasks = [
+        {
+            "task_id": "med-evac",
+            "priority": 5,
+            "capabilities_required": ["medic", "driver"],
+            "min_units": 2,
+            "max_units": 2,
+            "location": "ao-west",
+        },
+        {
+            "task_id": "sensor-repair",
+            "priority": 3,
+            "capabilities_required": ["engineer"],
+            "location": "ao-west",
+        },
+        {
+            "task_id": "supply-run",
+            "priority": 2,
+            "capabilities_required": ["driver"],
+            "location": "ao-east",
+        },
+    ]
+    responders = [
+        {
+            "unit_id": "alpha-1",
+            "capabilities": ["medic", "driver"],
+            "location": "ao-west",
+            "max_concurrent_tasks": 1,
+        },
+        {
+            "unit_id": "bravo-2",
+            "capabilities": ["medic"],
+            "location": "ao-west",
+            "max_concurrent_tasks": 1,
+        },
+        {
+            "unit_id": "charlie-5",
+            "capabilities": ["engineer"],
+            "location": "ao-west",
+            "max_concurrent_tasks": 1,
+        },
+        {
+            "unit_id": "delta-7",
+            "capabilities": ["driver"],
+            "location": "ao-east",
+            "status": "busy",
+            "max_concurrent_tasks": 1,
+            "current_tasks": ["long-haul"],
+        },
+    ]
+
     controller = HQCommandController()
     controller.load_from_payload({"tasks": tasks, "responders": responders, "telemetry": {}})
 
