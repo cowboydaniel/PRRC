@@ -32,6 +32,7 @@ from .qt_compat import (
 )
 from .components import Input, Button, ButtonVariant, Badge, BadgeType
 from .styles import theme
+from .virtualization import VirtualizedSequence
 
 
 class SortOrder(Enum):
@@ -63,6 +64,7 @@ class DataTableModel(QAbstractItemModel):
         self._sort_column = -1
         self._sort_order = SortOrder.NONE
         self._filter_func: Optional[Callable[[Dict[str, Any]], bool]] = None
+        self._virtual_source: Optional[VirtualizedSequence[Dict[str, Any]]] = None
 
     def set_data(self, data: List[Dict[str, Any]]) -> None:
         """Set the table data and apply current filters."""
@@ -70,9 +72,30 @@ class DataTableModel(QAbstractItemModel):
         self._data = data
         self._apply_filter()
         self.endResetModel()
+        self._virtual_source = None
+
+    def set_virtualized_source(self, source: VirtualizedSequence[Dict[str, Any]]) -> None:
+        """Switch the model to use a virtualized data provider."""
+
+        self.beginResetModel()
+        self._virtual_source = source
+        self._data = []
+        self._filtered_data = []
+        self._sort_column = -1
+        self._sort_order = SortOrder.NONE
+        self.endResetModel()
+
+    def prefetch_rows(self, start: int, stop: Optional[int] = None) -> None:
+        """Prefetch an anticipated range of rows when virtualized."""
+
+        if self._virtual_source is not None:
+            self._virtual_source.prefetch(start, stop)
 
     def _apply_filter(self) -> None:
         """Apply current filter function to data."""
+        if self._virtual_source is not None:
+            self._filtered_data = []
+            return
         if self._filter_func:
             self._filtered_data = [row for row in self._data if self._filter_func(row)]
         else:
@@ -105,6 +128,8 @@ class DataTableModel(QAbstractItemModel):
     def set_filter(self, filter_func: Optional[Callable[[Dict[str, Any]], bool]]) -> None:
         """Set a filter function to limit displayed rows."""
         self.beginResetModel()
+        if self._virtual_source is not None and filter_func is not None:
+            raise RuntimeError("Filtering is handled by the virtualized data provider")
         self._filter_func = filter_func
         self._apply_filter()
         self.endResetModel()
@@ -113,9 +138,17 @@ class DataTableModel(QAbstractItemModel):
         """Return the rows currently passing the active filter."""
         return self._filtered_data.copy()
 
+    @property
+    def is_virtualized(self) -> bool:
+        """Whether the model is using a virtualized data provider."""
+
+        return self._virtual_source is not None
+
     def sort(self, column: int, order: SortOrder) -> None:
         """Sort data by specified column."""
         self.beginResetModel()
+        if self._virtual_source is not None:
+            raise RuntimeError("Sorting is handled by the virtualized data provider")
         self._sort_column = column
         self._sort_order = order
         self._sort_data()
@@ -136,6 +169,8 @@ class DataTableModel(QAbstractItemModel):
         """Return number of rows."""
         if parent.isValid():
             return 0
+        if self._virtual_source is not None:
+            return len(self._virtual_source)
         return len(self._filtered_data)
 
     def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
@@ -152,12 +187,18 @@ class DataTableModel(QAbstractItemModel):
         row = index.row()
         col = index.column()
 
-        if not (0 <= row < len(self._filtered_data)):
-            return None
+        if self._virtual_source is not None:
+            try:
+                row_data = self._virtual_source[row]
+            except IndexError:
+                return None
+        else:
+            if not (0 <= row < len(self._filtered_data)):
+                return None
+            row_data = self._filtered_data[row]
         if not (0 <= col < len(self._columns)):
             return None
 
-        row_data = self._filtered_data[row]
         col_key = self._columns[col]
 
         if role == Qt.DisplayRole or role == Qt.EditRole:
@@ -181,6 +222,11 @@ class DataTableModel(QAbstractItemModel):
 
     def get_row_data(self, row: int) -> Optional[Dict[str, Any]]:
         """Get full row data dictionary."""
+        if self._virtual_source is not None:
+            try:
+                return self._virtual_source[row]
+            except IndexError:
+                return None
         if 0 <= row < len(self._filtered_data):
             return self._filtered_data[row]
         return None

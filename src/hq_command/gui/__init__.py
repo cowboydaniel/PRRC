@@ -6,9 +6,15 @@ import sys
 from pathlib import Path
 from typing import Any, Sequence
 
-from .controller import HQCommandController
-from .main_window import HQMainWindow
-from .qt_compat import QtCore, QtWidgets
+try:  # pragma: no cover - import guard for headless environments
+    from .controller import HQCommandController
+    from .main_window import HQMainWindow
+    from .qt_compat import QtCore, QtWidgets
+except ImportError:  # pragma: no cover - PySide6 missing
+    HQCommandController = None  # type: ignore[assignment]
+    HQMainWindow = None  # type: ignore[assignment]
+    QtCore = None  # type: ignore[assignment]
+    QtWidgets = None  # type: ignore[assignment]
 
 __all__ = ["HQCommandController", "HQMainWindow", "main"]
 
@@ -43,6 +49,9 @@ def _start_timer(timer: Any) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    if HQCommandController is None or HQMainWindow is None or QtWidgets is None or QtCore is None:
+        raise RuntimeError("PySide6 is required to launch the HQ Command GUI.")
+
     parser = build_parser()
     args = parser.parse_args(argv)
 

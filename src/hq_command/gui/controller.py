@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, List, Mapping, Sequence
+from typing import Any, Iterable, List, Mapping, Sequence, Tuple
 
 from hq_command.analytics import summarize_field_telemetry
 from hq_command.tasking_engine import (
@@ -15,6 +15,8 @@ from hq_command.tasking_engine import (
     schedule_tasks_for_field_units,
 )
 
+from ..performance import MemoryTracker, PerformanceMetrics
+from .caching import StaleWhileRevalidateCache
 from .qt_compat import QtCore
 
 
@@ -100,6 +102,14 @@ class HQCommandController:
         self.task_queue_model = TaskQueueModel()
         self.telemetry_model = TelemetrySummaryModel()
         self._last_schedule: dict[str, Any] | None = None
+        self._schedule_cache: StaleWhileRevalidateCache[Tuple[Any, ...], dict[str, Any]] = (
+            StaleWhileRevalidateCache(ttl_seconds=2.0, max_age_seconds=10.0)
+        )
+        self._telemetry_cache: StaleWhileRevalidateCache[str, Mapping[str, Any]] = (
+            StaleWhileRevalidateCache(ttl_seconds=2.0, max_age_seconds=10.0)
+        )
+        self._metrics = PerformanceMetrics()
+        self._memory_tracker = MemoryTracker()
 
     # ------------------------------------------------------------------ loading
     def load_from_payload(self, payload: Mapping[str, Any]) -> None:
@@ -127,10 +137,17 @@ class HQCommandController:
     def refresh_models(self) -> None:
         """Recompute scheduling output and update Qt models."""
 
-        task_objects = [self._coerce_task(task) for task in self._state.tasks]
-        responder_objects = [self._coerce_responder(resp) for resp in self._state.responders]
+        with self._metrics.time_block("controller.refresh"):
+            task_objects = [self._coerce_task(task) for task in self._state.tasks]
+            responder_objects = [self._coerce_responder(resp) for resp in self._state.responders]
+            schedule_key = self._schedule_signature(task_objects, responder_objects)
 
-        schedule_result = schedule_tasks_for_field_units(task_objects, responder_objects)
+            def _compute_schedule() -> dict[str, Any]:
+                with self._metrics.time_block("controller.schedule"):
+                    return schedule_tasks_for_field_units(task_objects, responder_objects)
+
+            schedule_result = self._schedule_cache.get(schedule_key, _compute_schedule)
+            self._memory_tracker.capture_snapshot()
         self._last_schedule = schedule_result
 
         manual_assignments: list[dict[str, Any]] = []
@@ -187,12 +204,67 @@ class HQCommandController:
         ]
         self.task_queue_model.set_items(task_rows)
 
-        telemetry_summary = summarize_field_telemetry(self._state.telemetry)
+        telemetry_signature = self._telemetry_signature(self._state.telemetry)
+
+        def _compute_telemetry() -> Mapping[str, Any]:
+            with self._metrics.time_block("controller.telemetry"):
+                return summarize_field_telemetry(self._state.telemetry)
+
+        telemetry_summary = self._telemetry_cache.get(telemetry_signature, _compute_telemetry)
         telemetry_rows = [
             {"metric": key, "value": value}
             for key, value in sorted(telemetry_summary.items())
         ]
         self.telemetry_model.set_items(telemetry_rows)
+
+    # ---------------------------------------------------------------- metrics
+    def performance_snapshot(self) -> Mapping[str, Mapping[str, float]]:
+        """Expose aggregated performance metrics for diagnostics."""
+
+        return self._metrics.snapshot()
+
+    def memory_growth_bytes(self) -> int:
+        """Return the tracked memory growth across refresh cycles."""
+
+        return self._memory_tracker.growth()
+
+    # -------------------------------------------------------------- signatures
+    def _schedule_signature(
+        self,
+        tasks: Sequence[TaskingOrder],
+        responders: Sequence[ResponderStatus],
+    ) -> Tuple[Tuple[Any, ...], Tuple[Any, ...]]:
+        task_sig = tuple(
+            sorted(
+                (
+                    task.task_id,
+                    task.priority,
+                    tuple(sorted(task.capability_requirements)),
+                    task.min_units,
+                    task.max_units,
+                    task.location,
+                )
+                for task in tasks
+            )
+        )
+        responder_sig = tuple(
+            sorted(
+                (
+                    responder.unit_id,
+                    tuple(sorted(responder.capabilities)),
+                    responder.status,
+                    responder.max_concurrent_tasks,
+                    tuple(responder.current_tasks),
+                    responder.fatigue,
+                    responder.location,
+                )
+                for responder in responders
+            )
+        )
+        return task_sig, responder_sig
+
+    def _telemetry_signature(self, telemetry: Mapping[str, Any]) -> str:
+        return json.dumps(telemetry, sort_keys=True, default=str)
 
     # ----------------------------------------------------------------- operator
     def operator_profile(self) -> Mapping[str, Any]:

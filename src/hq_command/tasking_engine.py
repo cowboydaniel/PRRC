@@ -7,6 +7,7 @@ consumers can synchronize assignments without additional transformation.
 """
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Mapping, MutableSequence, Sequence, Tuple, Union
@@ -205,12 +206,29 @@ def schedule_tasks_for_field_units(
     deferred: List[str] = []
     escalated: List[str] = []
 
+    parallel_scoring_used = False
+    candidate_evaluations = 0
+
     for task in tasks_in_priority:
         scored_candidates: List[Tuple[int, str, ResponderStatus]] = []
-        for responder in responder_objects:
+
+        def _score_responder(responder: ResponderStatus) -> Tuple[int | None, ResponderStatus]:
             score = _score_assignment(task, responder)
-            if score is not None:
-                scored_candidates.append((score, responder.unit_id, responder))
+            return score, responder
+
+        if len(responder_objects) >= 16:
+            parallel_scoring_used = True
+            with ThreadPoolExecutor(max_workers=min(32, len(responder_objects))) as executor:
+                for score, responder in executor.map(_score_responder, responder_objects):
+                    candidate_evaluations += 1
+                    if score is not None:
+                        scored_candidates.append((score, responder.unit_id, responder))
+        else:
+            for responder in responder_objects:
+                score = _score_assignment(task, responder)
+                candidate_evaluations += 1
+                if score is not None:
+                    scored_candidates.append((score, responder.unit_id, responder))
 
         scored_candidates.sort(key=lambda item: (-item[0], item[1]))
 
@@ -246,6 +264,8 @@ def schedule_tasks_for_field_units(
         "assignments_made": len(assignments),
         "deferred_tasks": len(deferred),
         "escalated_tasks": len(escalated),
+        "parallel_scoring": parallel_scoring_used,
+        "candidate_evaluations": candidate_evaluations,
     }
 
     status = "complete" if not escalated else "escalated"
