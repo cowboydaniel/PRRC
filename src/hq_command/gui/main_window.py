@@ -10,6 +10,7 @@ Implements Phase 1 layout structure with:
 
 from __future__ import annotations
 from typing import Optional, List, Dict, Any
+from collections import Counter
 from pathlib import Path
 
 from .controller import HQCommandController
@@ -28,7 +29,14 @@ from .qt_compat import (
 # Phase 1 imports
 from .styles import theme, build_palette, component_styles, ThemeVariant, Theme
 from .layouts import NavigationRail, GlobalStatusBar, MissionCanvas, ContextDrawer, NavSection
-from .components import Heading, Card, ErrorMessage, LoadingSpinner
+from .components import (
+    Heading,
+    Card,
+    ErrorMessage,
+    LoadingSpinner,
+    Button,
+    ButtonVariant,
+)
 from .window_manager import WindowManager
 from .accessibility import KeyboardNavigationManager, FocusManager, setup_accessibility
 from .animations import AnimationBuilder, TransitionManager
@@ -41,6 +49,7 @@ from .timeline import TimelineView
 # Phase 3 imports - Interactive workflows
 from .workflows import (
     ManualAssignmentDialog,
+    BulkAssignmentDialog,
     TaskCreationDialog,
     TaskEditDialog,
     TaskEscalationDialog,
@@ -65,6 +74,7 @@ from .search_filter import (
     FilterManager,
     FilterPresetsPanel,
     ContextDrawerManager,
+    FilterPreset,
 )
 
 
@@ -98,6 +108,9 @@ class HQMainWindow(QMainWindow):
         # Phase 3 - Notification and filter managers
         self.filter_manager = FilterManager()
         self.drawer_content_manager = None  # Initialized after UI creation
+        self.filter_presets_panel: Optional[FilterPresetsPanel] = None
+        self._active_preset_context: Optional[str] = None
+        self.call_log: List[Dict[str, Any]] = []
 
         # Initialize UI
         self._setup_window()
@@ -109,6 +122,8 @@ class HQMainWindow(QMainWindow):
 
         # Restore window state
         self.window_manager.restore_window_state(self, default_width=1440, default_height=900)
+
+        self._update_call_actions()
 
     def _setup_window(self):
         """Configure main window properties."""
@@ -168,6 +183,9 @@ class HQMainWindow(QMainWindow):
 
         # Phase 3: Context drawer manager
         self.drawer_content_manager = ContextDrawerManager(self.context_drawer)
+        self.filter_presets_panel = FilterPresetsPanel(self.filter_manager)
+        self.filter_presets_panel.preset_applied.connect(self._on_filter_preset_applied)
+        self.filter_presets_panel.preset_saved.connect(self._on_filter_preset_saved)
 
         self.setCentralWidget(central)
 
@@ -216,6 +234,14 @@ class HQMainWindow(QMainWindow):
 
         self.roster_pane = RosterPane(self.controller.roster_model, left_container)
         self.task_pane = TaskQueuePane(self.controller.task_queue_model, left_container)
+
+        self.roster_pane.filter_presets_requested.connect(
+            lambda: self._show_filter_presets_panel("roster")
+        )
+        self.task_pane.filter_presets_requested.connect(
+            lambda: self._show_filter_presets_panel("tasks")
+        )
+        self.task_pane.bulk_assign_requested.connect(self._show_bulk_assignment_dialog)
 
         left_layout.addWidget(self.roster_pane)
         left_layout.addWidget(self.task_pane)
@@ -349,6 +375,12 @@ class HQMainWindow(QMainWindow):
         self.status_bar.set_escalation_count(0)
         self.status_bar.set_comms_status("Connected", StatusType.SUCCESS)
 
+    def _update_call_actions(self) -> None:
+        """Enable or disable call correlation actions based on history."""
+        has_pairs = len(self.call_log) > 1
+        if hasattr(self, "correlation_button"):
+            self.correlation_button.setEnabled(has_pairs)
+
     def show_error(self, message: str):
         """
         Display error message in context drawer.
@@ -449,6 +481,12 @@ class HQMainWindow(QMainWindow):
         self.search_bar = GlobalSearchBar()
         self.search_bar.search_requested.connect(self._on_search_requested)
         self.status_bar.layout().insertWidget(1, self.search_bar, 1)
+
+        # Call correlation shortcut button (3-13)
+        self.correlation_button = Button("Correlate Calls", ButtonVariant.SECONDARY)
+        self.correlation_button.setEnabled(False)
+        self.correlation_button.clicked.connect(self._show_call_correlation_dialog)
+        self.status_bar.layout().insertWidget(2, self.correlation_button)
 
         # Add notification badge (3-17)
         self.notification_badge = NotificationBadge()
@@ -645,6 +683,31 @@ class HQMainWindow(QMainWindow):
         dialog.assignment_confirmed.connect(self._on_assignment_confirmed)
         qt_exec(dialog)
 
+    def _show_bulk_assignment_dialog(self, task_ids: List[str]) -> None:
+        """Show the bulk assignment dialog for multiple tasks (3-02)."""
+        tasks: List[Dict[str, Any]] = []
+        for task_id in task_ids:
+            task_data = self._get_task_data(task_id)
+            if task_data:
+                tasks.append(task_data)
+
+        if not tasks:
+            return
+
+        available_units = [
+            r for r in self.controller.roster_model.items()
+            if r.get('status') == 'available'
+        ]
+
+        recommendations = {
+            task.get('task_id', ''): self._generate_unit_recommendations(task, available_units)
+            for task in tasks
+        }
+
+        dialog = BulkAssignmentDialog(tasks, available_units, recommendations, self)
+        dialog.bulk_assignment_confirmed.connect(self._on_bulk_assignment_confirmed)
+        qt_exec(dialog)
+
     def _generate_unit_recommendations(
         self,
         task_data: Dict[str, Any],
@@ -707,6 +770,31 @@ class HQMainWindow(QMainWindow):
         )
 
         # Refresh data
+        self.refresh()
+
+    def _on_bulk_assignment_confirmed(self, assignments: Dict[str, List[str]]) -> None:
+        """Handle confirmed bulk assignments."""
+        for task_id, unit_ids in assignments.items():
+            for unit_id in unit_ids:
+                self.controller.apply_manual_assignment(task_id, unit_id)
+
+            self.notification_manager.add_assignment_notification(
+                task_id,
+                unit_ids,
+                action_callback=lambda tid=task_id: self._show_task_details({'task_id': tid}),
+            )
+
+        self.notification_badge.set_unread_count(
+            self.notification_panel.get_unread_count()
+        )
+
+        analytics = {
+            "Tasks Updated": len(assignments),
+            "Units Affected": sum(len(units) for units in assignments.values()),
+        }
+        if self.drawer_content_manager:
+            self.drawer_content_manager.show_analytics_summary(analytics)
+
         self.refresh()
 
     def _show_task_creation_dialog(self):
@@ -890,6 +978,12 @@ class HQMainWindow(QMainWindow):
         """Handle call submission (3-11)."""
         print(f"Call submitted: {call_data}")
 
+        self.call_log.append(call_data)
+        self._update_call_actions()
+
+        if self.drawer_content_manager:
+            self.drawer_content_manager.show_call_transcript(call_data)
+
         self.notification_manager.add_system_notification(
             "Call Received",
             f"Call {call_data.get('call_id')} logged: {call_data.get('incident_type')}",
@@ -898,6 +992,59 @@ class HQMainWindow(QMainWindow):
         self.notification_badge.set_unread_count(
             self.notification_panel.get_unread_count()
         )
+
+    def _show_call_correlation_dialog(self) -> None:
+        """Open the call correlation dialog for recent calls (3-13)."""
+        if not self.call_log:
+            self.show_error("No calls available for correlation yet.")
+            return
+
+        primary_call = self.call_log[-1]
+        similar_calls = self._find_similar_calls(primary_call)
+
+        if not similar_calls:
+            self.show_error("No related calls found for the most recent entry.")
+            return
+
+        dialog = CallCorrelationDialog(primary_call, similar_calls, self)
+        dialog.calls_linked.connect(self._on_calls_linked)
+        qt_exec(dialog)
+
+    def _find_similar_calls(self, primary_call: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Return calls that appear related to the primary call."""
+        primary_id = primary_call.get('call_id')
+        primary_location = primary_call.get('location')
+        primary_type = primary_call.get('incident_type')
+
+        similar: List[Dict[str, Any]] = []
+        for call in reversed(self.call_log[:-1]):
+            if call.get('call_id') == primary_id:
+                continue
+
+            location_match = primary_location and call.get('location') == primary_location
+            type_match = primary_type and call.get('incident_type') == primary_type
+
+            if location_match or type_match:
+                similar.append(call)
+
+        return similar
+
+    def _on_calls_linked(self, call_ids: List[str]) -> None:
+        """Handle confirmation of correlated calls."""
+        summary = ", ".join(call_ids)
+        self.notification_manager.add_system_notification(
+            "Calls Correlated",
+            f"Linked calls: {summary}",
+        )
+
+        self.notification_badge.set_unread_count(
+            self.notification_panel.get_unread_count()
+        )
+
+        if self.drawer_content_manager:
+            self.drawer_content_manager.show_analytics_summary(
+                {"Linked Calls": len(call_ids), "Primary": call_ids[0]}
+            )
 
     # -------------------------------------------------------------------------
     # Notifications (3-17)
@@ -924,6 +1071,89 @@ class HQMainWindow(QMainWindow):
         # Action callbacks are already executed
         # This is for additional tracking/logging
         pass
+
+    def _show_filter_presets_panel(self, context: str) -> None:
+        """Display the filter presets panel for the given context (3-16)."""
+        if not self.filter_presets_panel:
+            return
+
+        self._active_preset_context = context
+
+        context_title = "Task Queue" if context == "tasks" else "Responder Roster"
+        self.filter_presets_panel.set_context(f"Applying to: {context_title}")
+        self.filter_presets_panel.refresh()
+
+        self.context_drawer.clear_content()
+        self.context_drawer.set_title(f"{context_title} Presets")
+        self.context_drawer.add_content(self.filter_presets_panel)
+        self.context_drawer.open_drawer()
+
+    def _on_filter_preset_applied(self, filters: Dict[str, Any]) -> None:
+        """Apply filters from the presets panel to the active view."""
+        if not self._active_preset_context:
+            return
+
+        if self._active_preset_context == "tasks":
+            self.task_pane.apply_preset_filters(filters)
+            filtered_tasks = self.task_pane.get_filtered_tasks()
+            stats = Counter(task.get("priority", 0) for task in filtered_tasks)
+            analytics = {
+                "Visible Tasks": len(filtered_tasks),
+                "P1": stats.get(1, 0),
+                "P2": stats.get(2, 0),
+            }
+            if self.drawer_content_manager:
+                self.drawer_content_manager.show_analytics_summary(analytics)
+        elif self._active_preset_context == "roster":
+            self.roster_pane.apply_preset_filters(filters)
+            responders = self.roster_pane.get_filtered_responders()
+            if self.drawer_content_manager:
+                self.drawer_content_manager.show_responder_roster(responders)
+
+    def _on_filter_preset_saved(self, _placeholder: str) -> None:
+        """Persist the currently active filters as a new preset."""
+        if not self._active_preset_context:
+            return
+
+        current_filters = self._collect_current_filters(self._active_preset_context)
+        if not current_filters:
+            return
+
+        base = "Task" if self._active_preset_context == "tasks" else "Roster"
+        preset_name = self._generate_preset_name(f"{base} Preset")
+        description = f"Saved from {base.lower()} view"
+
+        preset = FilterPreset(preset_name, current_filters, description)
+        self.filter_manager.save_preset(preset)
+
+        if self.filter_presets_panel:
+            self.filter_presets_panel.refresh()
+
+        self.notification_manager.add_system_notification(
+            "Preset Saved",
+            f"{preset_name} is now available",
+        )
+        self.notification_badge.set_unread_count(
+            self.notification_panel.get_unread_count()
+        )
+
+    def _collect_current_filters(self, context: str) -> Dict[str, Any]:
+        """Gather the current filter state for the active pane."""
+        if context == "tasks":
+            return self.task_pane.get_active_filters()
+        if context == "roster":
+            return self.roster_pane.get_active_filters()
+        return {}
+
+    def _generate_preset_name(self, base: str) -> str:
+        """Generate a unique preset name based on the provided base."""
+        existing = set(self.filter_manager.list_presets())
+        index = 1
+        candidate = f"{base} {index}"
+        while candidate in existing:
+            index += 1
+            candidate = f"{base} {index}"
+        return candidate
 
     # -------------------------------------------------------------------------
     # Helper Methods

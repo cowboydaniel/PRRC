@@ -102,11 +102,14 @@ class RosterPane(QWidget):
     - Search box for unit ID lookup
     """
 
+    filter_presets_requested = pyqtSignal()
+
     def __init__(self, model: RosterListModel, parent: Optional[QWidget] = None):
         super().__init__(parent)
 
         self._model = model
         self._table_model = RosterTableModel()
+        self._active_preset_filters: Dict[str, Any] = {}
 
         self._setup_ui()
         self._connect_signals()
@@ -136,6 +139,10 @@ class RosterPane(QWidget):
         self._search_input = Input(placeholder="Search unit ID...")
         self._search_input.setMaximumWidth(200)
         header_layout.addWidget(self._search_input)
+
+        presets_button = Button("Presets", ButtonVariant.OUTLINE)
+        presets_button.clicked.connect(self.filter_presets_requested.emit)
+        header_layout.addWidget(presets_button)
 
         header_layout.addStretch()
 
@@ -180,29 +187,86 @@ class RosterPane(QWidget):
 
     def _on_filter_changed(self, status: str) -> None:
         """Handle status filter changes."""
-        if status == "All":
-            self._table_model.set_filter(None)
-        else:
-            status_lower = status.lower()
-
-            def status_filter(row: Dict[str, Any]) -> bool:
-                return row.get("status", "").lower() == status_lower
-
-            self._table_model.set_filter(status_filter)
+        self._apply_filters()
 
     def _on_search_changed(self, text: str) -> None:
         """Handle search text changes."""
-        text = text.lower().strip()
+        self._apply_filters()
 
-        if not text:
-            # Reapply status filter if any
-            self._on_filter_changed(self._status_filter.currentText())
-        else:
-            def search_filter(row: Dict[str, Any]) -> bool:
+    def _apply_filters(self) -> None:
+        """Apply the combined status, search, and preset filters."""
+        status_text = self._status_filter.currentText()
+        search_text = self._search_input.text().lower().strip()
+        preset_filters = self._active_preset_filters
+
+        if (
+            status_text == "All"
+            and not search_text
+            and not preset_filters
+        ):
+            self._table_model.set_filter(None)
+            return
+
+        def combined_filter(row: Dict[str, Any]) -> bool:
+            if status_text != "All":
+                if row.get("status", "").lower() != status_text.lower():
+                    return False
+
+            if search_text:
                 unit_id = str(row.get("unit_id", "")).lower()
-                return text in unit_id
+                if search_text not in unit_id:
+                    return False
 
-            self._table_model.set_filter(search_filter)
+            preset_status = preset_filters.get("status")
+            if preset_status and row.get("status", "").lower() != str(preset_status).lower():
+                return False
+
+            capacity_min = preset_filters.get("capacity_min")
+            if capacity_min is not None:
+                if row.get("available_capacity", 0) < capacity_min:
+                    return False
+
+            capacity_exact = preset_filters.get("capacity")
+            if capacity_exact is not None:
+                if row.get("available_capacity", 0) != capacity_exact:
+                    return False
+
+            return True
+
+        self._table_model.set_filter(combined_filter)
+
+    def apply_preset_filters(self, filters: Dict[str, Any]) -> None:
+        """Apply preset filters originating from the filter manager."""
+        self._active_preset_filters = filters.copy()
+
+        status_value = filters.get("status")
+        if status_value:
+            status_title = str(status_value).capitalize()
+            if status_title in ["All", "Available", "Busy", "Offline"]:
+                self._status_filter.setCurrentText(status_title)
+        elif self._status_filter.currentText() != "All":
+            self._status_filter.setCurrentText("All")
+
+        self._apply_filters()
+
+    def get_filtered_responders(self) -> List[Dict[str, Any]]:
+        """Return the responders currently visible in the table."""
+        return self._table_model.filtered_data()
+
+    def get_active_filters(self) -> Dict[str, Any]:
+        """Return the active filters so they can be persisted as presets."""
+        filters: Dict[str, Any] = {}
+
+        status_text = self._status_filter.currentText()
+        if status_text != "All":
+            filters["status"] = status_text.lower()
+
+        search_text = self._search_input.text().strip()
+        if search_text:
+            filters["unit_id_contains"] = search_text
+
+        filters.update(self._active_preset_filters)
+        return filters
 
 
 # =============================================================================
@@ -285,12 +349,15 @@ class TaskQueuePane(QWidget):
     assign_requested = pyqtSignal(str)  # task_id
     escalate_requested = pyqtSignal(str)  # task_id
     defer_requested = pyqtSignal(str)  # task_id
+    bulk_assign_requested = pyqtSignal(list)  # [task_id]
+    filter_presets_requested = pyqtSignal()
 
     def __init__(self, model: TaskQueueModel, parent: Optional[QWidget] = None):
         super().__init__(parent)
 
         self._model = model
         self._table_model = TaskQueueTableModel()
+        self._active_preset_filters: Dict[str, Any] = {}
 
         self._setup_ui()
         self._connect_signals()
@@ -323,6 +390,15 @@ class TaskQueuePane(QWidget):
 
         header_layout.addStretch()
 
+        self._bulk_assign_button = Button("Assign Selected", ButtonVariant.PRIMARY)
+        self._bulk_assign_button.setEnabled(False)
+        self._bulk_assign_button.clicked.connect(self._on_bulk_assign_clicked)
+        header_layout.addWidget(self._bulk_assign_button)
+
+        presets_button = Button("Presets", ButtonVariant.OUTLINE)
+        presets_button.clicked.connect(self.filter_presets_requested.emit)
+        header_layout.addWidget(presets_button)
+
         layout.addLayout(header_layout)
 
         # Data table
@@ -354,6 +430,7 @@ class TaskQueuePane(QWidget):
         """Connect UI signals."""
         self._priority_filter.currentTextChanged.connect(self._on_filter_changed)
         self._status_filter.currentTextChanged.connect(self._on_filter_changed)
+        self._table.selection_changed.connect(self._on_selection_changed)
 
     def refresh(self) -> None:
         """Refresh task queue data from model."""
@@ -372,22 +449,113 @@ class TaskQueuePane(QWidget):
             self._table_model.set_filter(None)
             return
 
+        self._apply_filters(priority, status)
+
+    def _apply_filters(self, priority: str, status: str) -> None:
+        """Apply dropdown and preset filters together."""
+        preset_filters = self._active_preset_filters
+
+        if (
+            priority == "All"
+            and status == "All"
+            and not preset_filters
+        ):
+            self._table_model.set_filter(None)
+            return
+
         def combined_filter(row: Dict[str, Any]) -> bool:
-            # Priority filter
             if priority != "All":
                 task_priority = row.get("priority", 0)
                 if f"P{task_priority}" != priority:
                     return False
 
-            # Status filter
             if status != "All":
                 task_status = row.get("status", "pending").lower()
                 if task_status != status.lower():
                     return False
 
+            preset_status = preset_filters.get("status")
+            if preset_status and row.get("status", "").lower() != str(preset_status).lower():
+                return False
+
+            priority_max = preset_filters.get("priority_max")
+            if priority_max is not None and row.get("priority", 0) > priority_max:
+                return False
+
+            priority_exact = preset_filters.get("priority")
+            if priority_exact is not None and row.get("priority", 0) != priority_exact:
+                return False
+
             return True
 
         self._table_model.set_filter(combined_filter)
+
+    def _on_selection_changed(self, rows: List[int]) -> None:
+        """Enable bulk assignment when multiple tasks are selected."""
+        self._bulk_assign_button.setEnabled(bool(rows))
+
+    def _on_bulk_assign_clicked(self) -> None:
+        """Emit a request for bulk assignment for selected tasks."""
+        selected_ids = self.get_selected_task_ids()
+        if selected_ids:
+            self.bulk_assign_requested.emit(selected_ids)
+
+    def get_selected_task_ids(self) -> List[str]:
+        """Return the task IDs that are currently selected in the table."""
+        rows = self._table.get_selected_rows()
+        task_ids: List[str] = []
+        for row in rows:
+            row_data = self._table_model.get_row_data(row)
+            if not row_data:
+                continue
+            task_id = row_data.get("task_id")
+            if task_id:
+                task_ids.append(str(task_id))
+        return task_ids
+
+    def apply_preset_filters(self, filters: Dict[str, Any]) -> None:
+        """Apply filters from a saved preset."""
+        self._active_preset_filters = filters.copy()
+
+        preset_status = filters.get("status")
+        if preset_status:
+            status_title = str(preset_status).capitalize()
+            if status_title in ["Pending", "Assigned", "Escalated", "Deferred"]:
+                self._status_filter.setCurrentText(status_title)
+        elif self._status_filter.currentText() != "All":
+            self._status_filter.setCurrentText("All")
+
+        preset_priority = filters.get("priority")
+        if preset_priority is not None:
+            priority_label = f"P{preset_priority}"
+            if priority_label in ["P1", "P2", "P3", "P4"]:
+                self._priority_filter.setCurrentText(priority_label)
+        elif self._priority_filter.currentText() != "All":
+            self._priority_filter.setCurrentText("All")
+
+        self._apply_filters(
+            self._priority_filter.currentText(),
+            self._status_filter.currentText(),
+        )
+
+    def get_filtered_tasks(self) -> List[Dict[str, Any]]:
+        """Return the filtered task rows currently displayed."""
+        return self._table_model.filtered_data()
+
+    def get_active_filters(self) -> Dict[str, Any]:
+        """Return the active filters in the task pane."""
+        filters: Dict[str, Any] = {}
+
+        priority_text = self._priority_filter.currentText()
+        if priority_text != "All":
+            filters["priority"] = int(priority_text.replace("P", ""))
+
+        status_text = self._status_filter.currentText()
+        if status_text != "All":
+            filters["status"] = status_text.lower()
+
+        filters.update(self._active_preset_filters)
+        return filters
 
     def _show_context_menu(self, position) -> None:
         """Show context menu for task actions."""

@@ -109,6 +109,10 @@ class DataTableModel(QAbstractItemModel):
         self._apply_filter()
         self.endResetModel()
 
+    def filtered_data(self) -> List[Dict[str, Any]]:
+        """Return the rows currently passing the active filter."""
+        return self._filtered_data.copy()
+
     def sort(self, column: int, order: SortOrder) -> None:
         """Sort data by specified column."""
         self.beginResetModel()
@@ -272,6 +276,7 @@ class DataTable(QWidget):
         self._table_view.setModel(self._model)
         self._table_view.setSortingEnabled(True)
         self._table_view.setSelectionBehavior(QTableView.SelectRows)
+        self._table_view.setSelectionMode(QTableView.ExtendedSelection)
         self._table_view.setAlternatingRowColors(True)
 
         # Configure headers
@@ -288,6 +293,10 @@ class DataTable(QWidget):
         # Connect signals
         self._table_view.clicked.connect(self._on_row_clicked)
         self._table_view.doubleClicked.connect(self._on_row_double_clicked)
+
+        selection_model = self._table_view.selectionModel()
+        if selection_model:
+            selection_model.selectionChanged.connect(self._on_selection_changed)
 
         layout.addWidget(self._table_view, 1)
 
@@ -339,6 +348,12 @@ class DataTable(QWidget):
         indices = selection.selectedRows()
         return [index.row() for index in indices]
 
+    def get_filtered_data(self) -> List[Dict[str, Any]]:
+        """Return the filtered data currently displayed in the table."""
+        if hasattr(self._model, "filtered_data"):
+            return self._model.filtered_data()
+        return []
+
     def get_row_data(self, row: int) -> Optional[Dict[str, Any]]:
         """Get data for a specific row."""
         return self._model.get_row_data(row)
@@ -375,6 +390,10 @@ class DataTable(QWidget):
     def _on_row_double_clicked(self, index: QModelIndex) -> None:
         """Handle row double-click."""
         self.row_double_clicked.emit(index.row())
+
+    def _on_selection_changed(self, *_args) -> None:
+        """Emit signal when the selection changes."""
+        self.selection_changed.emit(self.get_selected_rows())
 
     def _on_prev_page(self) -> None:
         """Go to previous page."""

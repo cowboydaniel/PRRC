@@ -33,6 +33,8 @@ from .qt_compat import (
     QCheckBox,
     QGroupBox,
     QScrollArea,
+    QListWidget,
+    QListWidgetItem,
     Qt,
     pyqtSignal,
 )
@@ -48,6 +50,7 @@ from .components import (
     Card,
     Badge,
     BadgeType,
+    ErrorMessage,
 )
 
 
@@ -1240,4 +1243,197 @@ class CallCorrelationDialog(Modal):
         all_calls = [self.primary_call.get('call_id', '')] + self.selected_calls
 
         self.calls_linked.emit(all_calls)
+        self.accept()
+
+
+class BulkAssignmentDialog(Modal):
+    """Batch assignment dialog for assigning units to multiple tasks (3-02)."""
+
+    bulk_assignment_confirmed = pyqtSignal(dict)  # {task_id: [unit_id]}
+
+    def __init__(
+        self,
+        tasks: List[Dict[str, Any]],
+        available_units: List[Dict[str, Any]],
+        recommendations: Dict[str, List[UnitRecommendation]],
+        parent: Optional[QWidget] = None,
+    ):
+        super().__init__("Bulk Assign Units", parent)
+
+        self.tasks = tasks
+        self.available_units = available_units
+        self.recommendations = recommendations
+        self._assignment_map: Dict[str, List[str]] = {
+            task.get("task_id", ""): [] for task in tasks
+        }
+        self._task_lists: Dict[str, QListWidget] = {}
+        self._building = False
+
+        self.setMinimumWidth(900)
+        self.setMinimumHeight(600)
+
+        self._build_ui()
+
+    def _build_ui(self) -> None:
+        """Construct the bulk assignment interface."""
+        self.content_layout.addWidget(
+            Heading(
+                f"Selected Tasks ({len(self.tasks)})",
+                level=4,
+            )
+        )
+        self.content_layout.addWidget(
+            QLabel(
+                "Review each task, accept recommended units, or pick alternates before"
+                " confirming all assignments."
+            )
+        )
+
+        apply_all_btn = Button("Apply Recommended to All", ButtonVariant.SECONDARY)
+        apply_all_btn.clicked.connect(self._apply_recommended_to_all)
+        self.content_layout.addWidget(apply_all_btn)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+        container_layout.setSpacing(theme.SPACING_MD)
+
+        for task in self.tasks:
+            card = self._create_task_card(task)
+            container_layout.addWidget(card)
+
+        container_layout.addStretch()
+        scroll.setWidget(container)
+        self.content_layout.addWidget(scroll, 1)
+
+        self.summary_label = QLabel("")
+        self.summary_label.setWordWrap(True)
+        self.content_layout.addWidget(self.summary_label)
+        self._update_summary()
+
+        self.button_box.accepted.disconnect()
+        self.button_box.accepted.connect(self._confirm_bulk_assignment)
+
+    def _create_task_card(self, task: Dict[str, Any]) -> Card:
+        """Create a card containing unit selections for a task."""
+        task_id = task.get("task_id", "Unknown")
+        card = Card()
+        card.add_widget(Heading(f"Task {task_id}", level=5))
+
+        info = QLabel(
+            f"Priority P{task.get('priority', 'N/A')} — Required: "
+            f"{', '.join(task.get('required_capabilities', [])) or 'None'}"
+        )
+        info.setWordWrap(True)
+        card.add_widget(info)
+
+        recommended_units = [
+            rec.unit_id for rec in self.recommendations.get(task_id, [])[:2]
+        ]
+        if recommended_units:
+            rec_label = QLabel(
+                "Recommended: " + ", ".join(recommended_units)
+            )
+            rec_label.setStyleSheet(f"color: {theme.SUCCESS}; font-weight: 600;")
+            card.add_widget(rec_label)
+
+        list_widget = QListWidget()
+        list_widget.setSelectionMode(QListWidget.NoSelection)
+        self._populate_unit_list(list_widget, task_id, recommended_units)
+        list_widget.itemChanged.connect(
+            lambda _item, tid=task_id: self._on_unit_toggled(tid)
+        )
+        self._task_lists[task_id] = list_widget
+        card.add_widget(list_widget)
+
+        return card
+
+    def _populate_unit_list(
+        self,
+        list_widget: QListWidget,
+        task_id: str,
+        recommended_units: List[str],
+    ) -> None:
+        """Populate the selectable unit list for a task."""
+        self._building = True
+        list_widget.clear()
+        for unit in self.available_units:
+            unit_id = unit.get("unit_id", "")
+            item_text = f"{unit_id} — {', '.join(unit.get('capabilities', []))}"
+            item = QListWidgetItem(item_text)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            if unit_id in recommended_units:
+                item.setCheckState(Qt.Checked)
+                self._assignment_map.setdefault(task_id, [])
+                if unit_id not in self._assignment_map[task_id]:
+                    self._assignment_map[task_id].append(unit_id)
+            else:
+                item.setCheckState(Qt.Unchecked)
+            item.setData(Qt.UserRole, unit_id)
+            list_widget.addItem(item)
+        self._building = False
+
+    def _apply_recommended_to_all(self) -> None:
+        """Select recommended units for all tasks."""
+        for task in self.tasks:
+            task_id = task.get("task_id", "")
+            list_widget = self._task_lists.get(task_id)
+            if not list_widget:
+                continue
+            recommended_units = [
+                rec.unit_id for rec in self.recommendations.get(task_id, [])[:2]
+            ]
+            for index in range(list_widget.count()):
+                item = list_widget.item(index)
+                unit_id = item.data(Qt.UserRole)
+                if unit_id in recommended_units:
+                    item.setCheckState(Qt.Checked)
+                else:
+                    item.setCheckState(Qt.Unchecked)
+        self._update_summary()
+
+    def _on_unit_toggled(self, task_id: str) -> None:
+        """Track unit selections for a task."""
+        if self._building:
+            return
+
+        list_widget = self._task_lists.get(task_id)
+        if not list_widget:
+            return
+
+        selected: List[str] = []
+        for index in range(list_widget.count()):
+            item = list_widget.item(index)
+            if item.checkState() == Qt.Checked:
+                unit_id = item.data(Qt.UserRole)
+                if unit_id:
+                    selected.append(unit_id)
+
+        self._assignment_map[task_id] = selected
+        self._update_summary()
+
+    def _update_summary(self) -> None:
+        """Update the summary label to reflect pending assignments."""
+        assigned_tasks = sum(1 for units in self._assignment_map.values() if units)
+        total_units = sum(len(units) for units in self._assignment_map.values())
+        self.summary_label.setText(
+            f"Assignments prepared for {assigned_tasks} task(s); "
+            f"{total_units} unit selections ready to confirm."
+        )
+
+    def _confirm_bulk_assignment(self) -> None:
+        """Emit the bulk assignment payload when confirmed."""
+        assignments = {
+            task_id: units
+            for task_id, units in self._assignment_map.items()
+            if task_id and units
+        }
+
+        if not assignments:
+            error = ErrorMessage("Select at least one unit before confirming assignments.")
+            self.content_layout.insertWidget(0, error)
+            return
+
+        self.bulk_assignment_confirmed.emit(assignments)
         self.accept()
