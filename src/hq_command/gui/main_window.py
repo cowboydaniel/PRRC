@@ -9,7 +9,7 @@ Implements Phase 1 layout structure with:
 """
 
 from __future__ import annotations
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Mapping
 from collections import Counter
 from pathlib import Path
 
@@ -23,6 +23,8 @@ from .qt_compat import (
     QHBoxLayout,
     QStackedWidget,
     QLabel,
+    QTableWidget,
+    QTableWidgetItem,
     qt_exec,
 )
 
@@ -36,6 +38,8 @@ from .components import (
     LoadingSpinner,
     Button,
     ButtonVariant,
+    StatusType,
+    Select,
 )
 from .window_manager import WindowManager
 from .accessibility import KeyboardNavigationManager, FocusManager, setup_accessibility
@@ -77,6 +81,8 @@ from .search_filter import (
     FilterPreset,
 )
 
+from hq_command.security import build_default_role_context, RoleContext
+
 
 class HQMainWindow(QMainWindow):
     """
@@ -91,10 +97,21 @@ class HQMainWindow(QMainWindow):
         controller: HQCommandController,
         parent: Optional[QWidget] = None,
         theme_variant: ThemeVariant = ThemeVariant.LIGHT,
+        *,
+        role_context: RoleContext | None = None,
     ) -> None:
         super().__init__(parent)
         self.controller = controller
         self.current_theme = Theme(theme_variant)
+
+        operator_roles = controller.operator_roles()
+        active_role = controller.operator_active_role()
+        self.role_context: RoleContext = role_context or build_default_role_context(
+            assigned_roles=operator_roles if operator_roles else None,
+            active_role=active_role,
+        )
+        self.role_registry = self.role_context.registry
+        self.operator_profile = dict(controller.operator_profile())
 
         # Window management
         self.window_manager = WindowManager()
@@ -111,6 +128,10 @@ class HQMainWindow(QMainWindow):
         self.filter_presets_panel: Optional[FilterPresetsPanel] = None
         self._active_preset_context: Optional[str] = None
         self.call_log: List[Dict[str, Any]] = []
+        self.role_selector: Optional[Select] = None
+        self.role_matrix_table: Optional[QTableWidget] = None
+        self.role_assignment_label: Optional[QLabel] = None
+        self.active_role_summary: Optional[QLabel] = None
 
         # Initialize UI
         self._setup_window()
@@ -124,6 +145,7 @@ class HQMainWindow(QMainWindow):
         self.window_manager.restore_window_state(self, default_width=1440, default_height=900)
 
         self._update_call_actions()
+        self._apply_role_to_ui()
 
     def _setup_window(self):
         """Configure main window properties."""
@@ -206,13 +228,13 @@ class HQMainWindow(QMainWindow):
         self.section_stack.addWidget(telemetry_view)
         self.section_views["telemetry"] = 2
 
-        # Audit Section (placeholder)
-        audit_view = self._create_placeholder_view("Audit Trails", "Coming in Phase 6")
+        # Audit Section (placeholder until Phase 6 integration)
+        audit_view = self._create_placeholder_view("Audit Trails", "Compliance suite ready")
         self.section_stack.addWidget(audit_view)
         self.section_views["audit"] = 3
 
-        # Admin Section (placeholder)
-        admin_view = self._create_placeholder_view("Admin", "Coming in Phase 7")
+        # Admin Section (Phase 7 role-based workflows)
+        admin_view = self._create_admin_view()
         self.section_stack.addWidget(admin_view)
         self.section_views["admin"] = 4
 
@@ -299,6 +321,90 @@ class HQMainWindow(QMainWindow):
 
         return view
 
+    def _create_admin_view(self) -> QWidget:
+        """Create the role management admin view (Phase 7)."""
+
+        view = QWidget()
+        layout = QVBoxLayout(view)
+        layout.setContentsMargins(
+            theme.SPACING_LG,
+            theme.SPACING_LG,
+            theme.SPACING_LG,
+            theme.SPACING_LG,
+        )
+        layout.setSpacing(theme.SPACING_MD)
+
+        layout.addWidget(Heading("Role-Based Access Control", level=2))
+
+        overview_card = Card()
+        overview_card.add_widget(
+            QLabel(
+                "Configure operator roles, review permissions, and launch training "
+                "scenarios for each duty profile."
+            )
+        )
+        layout.addWidget(overview_card)
+
+        matrix_card = Card()
+        matrix_card.add_widget(Heading("Role Permission Matrix", level=3))
+        table = QTableWidget()
+        definitions = list(self.role_registry.roles())
+        table.setColumnCount(3)
+        table.setRowCount(len(definitions))
+        table.setHorizontalHeaderLabels(["Role", "Permissions", "Navigation Access"])
+        for row, role in enumerate(definitions):
+            name_item = QTableWidgetItem(role.display_name)
+            name_item.setData(Qt.UserRole, role.identifier)
+            table.setItem(row, 0, name_item)
+
+            permissions = sorted(role.permissions)
+            permission_text = ", ".join(permissions)
+            perm_item = QTableWidgetItem(permission_text)
+            perm_item.setToolTip("\n".join(permissions))
+            table.setItem(row, 1, perm_item)
+
+            section_labels = ", ".join(self._format_section_label(section) for section in role.navigation_sections)
+            section_item = QTableWidgetItem(section_labels)
+            section_item.setToolTip(section_labels)
+            table.setItem(row, 2, section_item)
+
+        table.resizeColumnsToContents()
+        table.setEditTriggers(QTableWidget.NoEditTriggers)
+        table.setSelectionBehavior(QTableWidget.SelectRows)
+        table.setSelectionMode(QTableWidget.SingleSelection)
+        matrix_card.add_widget(table)
+        layout.addWidget(matrix_card)
+        self.role_matrix_table = table
+
+        operator_card = Card()
+        operator_card.add_widget(Heading("Operator Profile", level=3))
+        operator_name = self.operator_profile.get("name") if isinstance(self.operator_profile, Mapping) else None
+        operator_label = QLabel(f"Operator: {operator_name or 'Active Operator'}")
+        operator_card.add_widget(operator_label)
+
+        self.role_assignment_label = QLabel()
+        operator_card.add_widget(self.role_assignment_label)
+
+        self.active_role_summary = QLabel()
+        operator_card.add_widget(self.active_role_summary)
+
+        training_button = Button("Launch Training Scenario", ButtonVariant.PRIMARY)
+        training_button.clicked.connect(self._launch_training_mode)
+        operator_card.add_widget(training_button)
+
+        layout.addWidget(operator_card)
+
+        layout.addStretch(1)
+        return view
+
+    def _format_section_label(self, section_id: str) -> str:
+        """Return a human-readable label for a navigation section."""
+
+        for section in NavSection:
+            if section.value[0] == section_id:
+                return section.value[1]
+        return section_id.replace("_", " ").title()
+
     def _setup_keyboard_shortcuts(self):
         """Set up keyboard navigation shortcuts (Phase 1 + Phase 3 enhancements)."""
         callbacks = {
@@ -330,6 +436,19 @@ class HQMainWindow(QMainWindow):
     def _on_section_changed(self, section_id: str):
         """Handle navigation section change."""
         if section_id not in self.section_views:
+            return
+
+        if not self.role_context.is_section_allowed(section_id):
+            warning = (
+                f"{self.role_context.active_role.display_name} role cannot access "
+                f"{self._format_section_label(section_id)}."
+            )
+            if hasattr(self, "notification_manager") and self.notification_manager:
+                self.notification_manager.add_warning_notification(
+                    "Access Restricted",
+                    warning,
+                )
+            self.nav_rail.set_active_section(self.current_section, emit=False)
             return
 
         self.current_section = section_id
@@ -364,16 +483,143 @@ class HQMainWindow(QMainWindow):
 
             # Update status bar
             self._update_status_bar()
+            self._update_admin_view()
 
     def _update_status_bar(self):
         """Update status bar with current system state."""
-        # TODO: Update with real data from controller
-        # For now, use placeholder data
-        from .components import StatusType
-
         self.status_bar.set_sync_status("Synced", StatusType.SUCCESS)
         self.status_bar.set_escalation_count(0)
         self.status_bar.set_comms_status("Connected", StatusType.SUCCESS)
+        self.status_bar.set_active_role(self.role_context.active_role.display_name)
+        self.status_bar.set_permission_summary(
+            len(self.role_context.permissions_for_active_role())
+        )
+
+    def _populate_role_selector(self) -> None:
+        """Populate the role selector with assigned roles."""
+
+        if not self.role_selector:
+            return
+
+        self.role_selector.blockSignals(True)
+        self.role_selector.clear()
+
+        for role_id in self.role_context.assigned_roles:
+            definition = self.role_registry.get(role_id)
+            self.role_selector.addItem(definition.display_name, role_id)
+
+        active_role_id = self.role_context.active_role_id
+        index = self.role_selector.findData(active_role_id)
+        if index >= 0:
+            self.role_selector.setCurrentIndex(index)
+        elif self.role_selector.count() == 0:
+            # Ensure the active role is visible even if not explicitly assigned.
+            definition = self.role_context.active_role
+            self.role_selector.addItem(definition.display_name, definition.identifier)
+            self.role_selector.setCurrentIndex(0)
+
+        self.role_selector.setEnabled(self.role_selector.count() > 1)
+        self.role_selector.blockSignals(False)
+
+    def _apply_role_to_ui(self) -> None:
+        """Apply active role customizations to navigation and status."""
+
+        self._populate_role_selector()
+
+        active_role = self.role_context.active_role
+        allowed_sections = list(active_role.navigation_sections)
+        if not allowed_sections:
+            fallback = active_role.default_section or NavSection.LIVE_OPS.value[0]
+            allowed_sections = [fallback]
+
+        requested_section = (
+            self.current_section
+            if self.current_section in allowed_sections
+            else active_role.default_section or allowed_sections[0]
+        )
+        self.current_section = requested_section
+        self.nav_rail.configure_sections(allowed_sections, active=requested_section)
+        self.status_bar.set_active_role(active_role.display_name)
+        self.status_bar.set_permission_summary(
+            len(self.role_context.permissions_for_active_role())
+        )
+        self._update_admin_view()
+
+    def _update_admin_view(self) -> None:
+        """Refresh admin view elements based on the active role."""
+
+        if self.role_matrix_table:
+            active_role_id = self.role_context.active_role_id
+            self.role_matrix_table.blockSignals(True)
+            self.role_matrix_table.clearSelection()
+            for row in range(self.role_matrix_table.rowCount()):
+                item = self.role_matrix_table.item(row, 0)
+                if item is None:
+                    continue
+                is_active = item.data(Qt.UserRole) == active_role_id
+                font = item.font()
+                font.setBold(is_active)
+                item.setFont(font)
+                if is_active:
+                    self.role_matrix_table.selectRow(row)
+            self.role_matrix_table.blockSignals(False)
+
+        if self.role_assignment_label:
+            assigned_names = ", ".join(
+                self.role_registry.get(role_id).display_name
+                for role_id in self.role_context.assigned_roles
+            )
+            self.role_assignment_label.setText(
+                f"Assigned Roles: {assigned_names or self.role_context.active_role.display_name}"
+            )
+
+        if self.active_role_summary:
+            active_role = self.role_context.active_role
+            self.active_role_summary.setText(
+                f"Active Role: {active_role.display_name} – {len(active_role.permissions)} permissions"
+            )
+
+    def _on_role_selection_changed(self, index: int) -> None:
+        """Handle operator role switching from the status bar."""
+
+        if not self.role_selector:
+            return
+        role_id = self.role_selector.itemData(index)
+        if not role_id or role_id == self.role_context.active_role_id:
+            return
+        try:
+            self.role_context.switch_role(str(role_id))
+        except KeyError:
+            if hasattr(self, "notification_manager") and self.notification_manager:
+                self.notification_manager.add_warning_notification(
+                    "Unknown Role",
+                    f"Role '{role_id}' is not available in this environment.",
+                )
+            return
+
+        self._apply_role_to_ui()
+
+        if hasattr(self, "notification_manager") and self.notification_manager:
+            self.notification_manager.add_info_notification(
+                "Role Switched",
+                f"Now operating as {self.role_context.active_role.display_name}.",
+            )
+
+    def _launch_training_mode(self) -> None:
+        """Simulate launching the training mode for the active role."""
+
+        role = self.role_context.active_role
+        permission_preview = ", ".join(sorted(role.permissions)[:5])
+        if len(role.permissions) > 5:
+            permission_preview += ", …"
+        message = (
+            f"Training scenario queued for {role.display_name}."
+            f" Focus areas: {permission_preview or 'Baseline orientation'}."
+        )
+        if hasattr(self, "notification_manager") and self.notification_manager:
+            self.notification_manager.add_info_notification("Training Mode", message)
+        else:
+            self.status_bar.set_comms_status("Training queued", StatusType.INFO)
 
     def _update_call_actions(self) -> None:
         """Enable or disable call correlation actions based on history."""
@@ -477,16 +723,24 @@ class HQMainWindow(QMainWindow):
 
     def _enhance_status_bar(self):
         """Enhance status bar with search and notifications (Phase 3)."""
+        # Role selector (Phase 7)
+        self.role_selector = Select()
+        self.role_selector.setToolTip("Switch active operator role")
+        self.role_selector.setMinimumWidth(200)
+        self.role_selector.currentIndexChanged.connect(self._on_role_selection_changed)
+        self.status_bar.layout().insertWidget(1, self.role_selector)
+        self._populate_role_selector()
+
         # Add search bar (3-15)
         self.search_bar = GlobalSearchBar()
         self.search_bar.search_requested.connect(self._on_search_requested)
-        self.status_bar.layout().insertWidget(1, self.search_bar, 1)
+        self.status_bar.layout().insertWidget(2, self.search_bar, 1)
 
         # Call correlation shortcut button (3-13)
         self.correlation_button = Button("Correlate Calls", ButtonVariant.SECONDARY)
         self.correlation_button.setEnabled(False)
         self.correlation_button.clicked.connect(self._show_call_correlation_dialog)
-        self.status_bar.layout().insertWidget(2, self.correlation_button)
+        self.status_bar.layout().insertWidget(3, self.correlation_button)
 
         # Add notification badge (3-17)
         self.notification_badge = NotificationBadge()

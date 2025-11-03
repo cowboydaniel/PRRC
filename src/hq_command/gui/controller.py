@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, List, Mapping, Sequence
 
@@ -88,13 +88,14 @@ class ControllerState:
     tasks: Sequence[TaskPayload]
     responders: Sequence[ResponderPayload]
     telemetry: Mapping[str, Any]
+    operator: Mapping[str, Any] = field(default_factory=dict)
 
 
 class HQCommandController:
     """Coordinate data loading, scheduling, and GUI model updates."""
 
     def __init__(self) -> None:
-        self._state = ControllerState(tasks=[], responders=[], telemetry={})
+        self._state = ControllerState(tasks=[], responders=[], telemetry={}, operator={})
         self.roster_model = RosterListModel()
         self.task_queue_model = TaskQueueModel()
         self.telemetry_model = TelemetrySummaryModel()
@@ -107,7 +108,13 @@ class HQCommandController:
         tasks = payload.get("tasks", [])
         responders = payload.get("responders", [])
         telemetry = payload.get("telemetry", {})
-        self._state = ControllerState(tasks=list(tasks), responders=list(responders), telemetry=dict(telemetry))
+        operator = payload.get("operator", {})
+        self._state = ControllerState(
+            tasks=list(tasks),
+            responders=list(responders),
+            telemetry=dict(telemetry),
+            operator=dict(operator) if isinstance(operator, Mapping) else {},
+        )
         self.refresh_models()
 
     def load_from_file(self, path: Path) -> None:
@@ -186,6 +193,28 @@ class HQCommandController:
             for key, value in sorted(telemetry_summary.items())
         ]
         self.telemetry_model.set_items(telemetry_rows)
+
+    # ----------------------------------------------------------------- operator
+    def operator_profile(self) -> Mapping[str, Any]:
+        """Return the active operator profile payload."""
+
+        return self._state.operator
+
+    def operator_roles(self) -> tuple[str, ...]:
+        """Return roles assigned to the operator."""
+
+        roles = self._state.operator.get("roles")
+        if isinstance(roles, str):
+            return (roles,)
+        if isinstance(roles, Sequence):
+            return tuple(str(role) for role in roles if isinstance(role, str))
+        return ()
+
+    def operator_active_role(self) -> str | None:
+        """Return the operator's preferred active role if provided."""
+
+        active = self._state.operator.get("active_role")
+        return str(active) if isinstance(active, str) else None
 
     def apply_manual_assignment(self, task_id: str, unit_id: str) -> None:
         """Record a manual assignment and refresh models.

@@ -1,5 +1,14 @@
 {
   "tasks": [],
   "responders": [],
-  "telemetry": {}
+  "telemetry": {},
+  "operator": {
+    "id": "ops-supervisor-01",
+    "name": "Operations Supervisor",
+    "roles": [
+      "operations_supervisor",
+      "audit_lead"
+    ],
+    "active_role": "operations_supervisor"
+  }
 }
