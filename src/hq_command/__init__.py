@@ -12,6 +12,22 @@ from .sync import (
     OutboundChange,
     SyncEvent,
 )
+from .production import (
+    BackupManager,
+    BuildArtifact,
+    BuildPipeline,
+    ConfigSnapshot,
+    ConfigurationManager,
+    ConfigurationValidationError,
+    FailoverPlan,
+    HealthCheckResult,
+    HealthMonitor,
+    HighAvailabilityPlanner,
+    MetricsCollector,
+    ProductionEnvironmentPlanner,
+    ServerRequirement,
+    StructuredLogger,
+)
 
 __all__ = [
     "schedule_tasks_for_field_units",
@@ -22,4 +38,18 @@ __all__ = [
     "MemoryTransport",
     "OutboundChange",
     "SyncEvent",
+    "ProductionEnvironmentPlanner",
+    "ServerRequirement",
+    "BuildPipeline",
+    "BuildArtifact",
+    "ConfigurationManager",
+    "ConfigSnapshot",
+    "ConfigurationValidationError",
+    "StructuredLogger",
+    "HealthMonitor",
+    "HealthCheckResult",
+    "MetricsCollector",
+    "BackupManager",
+    "FailoverPlan",
+    "HighAvailabilityPlanner",
 ]
