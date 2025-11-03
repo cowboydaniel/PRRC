@@ -47,6 +47,8 @@ class GlobalSearchBar(QWidget):
 
         self.search_history: List[str] = []
 
+        self._context_label: Optional[QLabel] = None
+
         self._build_ui()
 
     def _build_ui(self):
@@ -347,6 +349,10 @@ class FilterPresetsPanel(QFrame):
         # Header
         layout.addWidget(Heading("Filter Presets", level=4))
 
+        self._context_label = QLabel("")
+        self._context_label.setStyleSheet(f"color: {theme.NEUTRAL_500};")
+        layout.addWidget(self._context_label)
+
         # Presets list
         self.presets_list = QListWidget()
         self.presets_list.itemDoubleClicked.connect(self._apply_preset)
@@ -418,6 +424,15 @@ class FilterPresetsPanel(QFrame):
     def _reset_filters(self):
         """Reset all filters."""
         self.preset_applied.emit({})
+
+    def set_context(self, context_label: str) -> None:
+        """Update the descriptive context label displayed in the panel."""
+        if self._context_label is not None:
+            self._context_label.setText(context_label)
+
+    def refresh(self) -> None:
+        """Refresh the list of presets from the manager."""
+        self._refresh_presets_list()
 
 
 # =============================================================================
