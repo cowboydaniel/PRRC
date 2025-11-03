@@ -8,7 +8,7 @@ Provides major layout components including:
 - Context Drawer (right overlay)
 """
 
-from typing import Optional, List, Callable
+from typing import Optional, List, Callable, Sequence
 from enum import Enum
 
 from .qt_compat import (
@@ -64,7 +64,7 @@ class NavigationRail(QFrame):
         layout.setSpacing(theme.SPACING_XS)
 
         # Create navigation buttons
-        self.buttons = {}
+        self.buttons: dict[str, QToolButton] = {}
         for section in NavSection:
             button = QToolButton(self)
             button.setObjectName("NavButton")
@@ -88,8 +88,12 @@ class NavigationRail(QFrame):
         # Add spacer to push buttons to top
         layout.addStretch(1)
 
+        self._visible_sections: set[str] = set(self.buttons.keys())
+
     def _on_nav_clicked(self, section_id: str):
         """Handle navigation button click."""
+        if section_id not in self._visible_sections:
+            return
         # Uncheck all other buttons
         for btn_id, button in self.buttons.items():
             button.setChecked(btn_id == section_id)
@@ -97,10 +101,34 @@ class NavigationRail(QFrame):
         # Emit signal
         self.section_changed.emit(section_id)
 
-    def set_active_section(self, section_id: str):
+    def configure_sections(self, section_ids: Sequence[str], *, active: Optional[str] = None) -> None:
+        """Limit navigation to the provided sections and select an active one."""
+
+        visible = [section_id for section_id in section_ids if section_id in self.buttons]
+        if not visible:
+            visible = list(self.buttons.keys())
+
+        self._visible_sections = set(visible)
+        for section_id, button in self.buttons.items():
+            button.setVisible(section_id in self._visible_sections)
+
+        target = active if active in self._visible_sections else (visible[0] if visible else None)
+        if target:
+            self.set_active_section(target)
+
+    def set_active_section(self, section_id: str, *, emit: bool = True):
         """Programmatically set the active section."""
-        if section_id in self.buttons:
-            self._on_nav_clicked(section_id)
+
+        if section_id not in self.buttons:
+            return
+
+        previous_state = self.blockSignals(True) if not emit else False
+        for btn_id, button in self.buttons.items():
+            button.setChecked(btn_id == section_id)
+        if not emit:
+            self.blockSignals(previous_state)
+        else:
+            self.section_changed.emit(section_id)
 
 
 # =============================================================================
@@ -134,8 +162,14 @@ class GlobalStatusBar(QFrame):
         self.title_label.setObjectName("H4")
         layout.addWidget(self.title_label)
 
+        self.role_badge = StatusBadge("Role: --", StatusType.INFO)
+        layout.addWidget(self.role_badge)
+
         # Spacer
         layout.addStretch(1)
+
+        self.permission_badge = StatusBadge("0 Permissions", StatusType.INFO)
+        layout.addWidget(self.permission_badge)
 
         # Sync status badge
         self.sync_badge = StatusBadge("Synced", StatusType.SUCCESS)
@@ -166,6 +200,19 @@ class GlobalStatusBar(QFrame):
         """Update communications status display."""
         self.comms_badge.setText(status)
         self.comms_badge.set_status(status_type)
+
+    def set_active_role(self, role_name: str, status_type: StatusType = StatusType.INFO):
+        """Display the active operator role."""
+
+        self.role_badge.setText(f"Role: {role_name}")
+        self.role_badge.set_status(status_type)
+
+    def set_permission_summary(self, permission_count: int):
+        """Display a summary of granted permissions."""
+
+        label = "Permission" if permission_count == 1 else "Permissions"
+        self.permission_badge.setText(f"{permission_count} {label}")
+        self.permission_badge.set_status(StatusType.INFO)
 
 
 # =============================================================================

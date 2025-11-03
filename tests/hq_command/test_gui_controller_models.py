@@ -122,3 +122,22 @@ def test_manual_assignment_is_reflected_in_models(tmp_path: Path) -> None:
     payload_path.write_text("{}")
     controller.load_from_file(payload_path)
     assert controller.roster_model.items() == []
+
+
+def test_operator_roles_are_exposed() -> None:
+    controller = HQCommandController()
+    controller.load_from_payload(
+        {
+            "tasks": [],
+            "responders": [],
+            "telemetry": {},
+            "operator": {
+                "name": "Sam Carter",
+                "roles": ["tasking_officer", "audit_lead"],
+                "active_role": "audit_lead",
+            },
+        }
+    )
+
+    assert controller.operator_roles() == ("tasking_officer", "audit_lead")
+    assert controller.operator_active_role() == "audit_lead"
