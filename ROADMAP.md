@@ -36,10 +36,10 @@
 - [x] Create tests that simulate mixed-priority queues and responder availability scenarios to verify deterministic scheduling and error handling.
 
 ## Phase 5 – Bridge Communications & Compliance
-- [ ] Implement protocol adapters in `src/bridge/comms_router.py` (REST, MQ, secure file drop) with configurable endpoints, mutual TLS, and payload signing.
-- [ ] Integrate retry logic, dead-letter queues, and partner-specific transformations while storing routing outcomes for analytics.
-- [ ] Build an audit persistence layer in `src/bridge/compliance.py` targeting tamper-evident storage with jurisdiction retention policies.
-- [ ] Add automated tests simulating successful routes, partner failures, and compliance audits to confirm routing metadata and audit records.
+- [x] Implement protocol adapters in `src/bridge/comms_router.py` (REST, MQ, secure file drop) with configurable endpoints, mutual TLS, and payload signing.
+- [x] Integrate retry logic, dead-letter queues, and partner-specific transformations while storing routing outcomes for analytics.
+- [x] Build an audit persistence layer in `src/bridge/compliance.py` targeting tamper-evident storage with jurisdiction retention policies.
+- [x] Add automated tests simulating successful routes, partner failures, and compliance audits to confirm routing metadata and audit records.
 
 ## Phase 6 – CLI, Integration, and Testing Hardening
 - [ ] Update `src/prrc_cli.py` to present enriched mission, telemetry, and bridge data with structured output options and robust error handling.
