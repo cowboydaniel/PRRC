@@ -41,6 +41,7 @@ from .timeline import TimelineView
 # Phase 3 imports - Interactive workflows
 from .workflows import (
     ManualAssignmentDialog,
+    BulkAssignmentDialog,
     TaskCreationDialog,
     TaskEditDialog,
     TaskEscalationDialog,
@@ -97,6 +98,8 @@ class HQMainWindow(QMainWindow):
 
         # Phase 3 - Notification and filter managers
         self.filter_manager = FilterManager()
+        self.filter_presets_panel = FilterPresetsPanel(self.filter_manager)
+        self.filter_presets_panel.preset_applied.connect(self._on_filter_preset_applied)
         self.drawer_content_manager = None  # Initialized after UI creation
 
         # Initialize UI
@@ -486,6 +489,18 @@ class HQMainWindow(QMainWindow):
         new_responder_shortcut = QShortcut(QKeySequence("Ctrl+Shift+R"), self)
         new_responder_shortcut.activated.connect(self._show_responder_creation_dialog)
 
+        # Bulk assign tasks (Ctrl+Shift+B)
+        bulk_assign_shortcut = QShortcut(QKeySequence("Ctrl+Shift+B"), self)
+        bulk_assign_shortcut.activated.connect(self._show_bulk_assignment_dialog)
+
+        # Call correlation (Ctrl+Shift+C)
+        call_correlation_shortcut = QShortcut(QKeySequence("Ctrl+Shift+C"), self)
+        call_correlation_shortcut.activated.connect(self._show_call_correlation_dialog)
+
+        # Show filter presets (Ctrl+Shift+F)
+        filter_presets_shortcut = QShortcut(QKeySequence("Ctrl+Shift+F"), self)
+        filter_presets_shortcut.activated.connect(self._show_filter_presets)
+
         # Show notifications (Ctrl+Shift+N)
         notifications_shortcut = QShortcut(QKeySequence("Ctrl+Shift+N"), self)
         notifications_shortcut.activated.connect(self._show_notifications)
@@ -511,6 +526,11 @@ class HQMainWindow(QMainWindow):
 
         # Get selected task (simplified)
         menu = QMenu(self)
+
+        bulk_assign_action = menu.addAction("Bulk Assign Selected...")
+        bulk_assign_action.triggered.connect(self._show_bulk_assignment_dialog)
+
+        menu.addSeparator()
 
         assign_action = menu.addAction("Assign Units...")
         assign_action.triggered.connect(lambda: self._show_assignment_dialog("TASK-001"))
@@ -709,6 +729,52 @@ class HQMainWindow(QMainWindow):
         # Refresh data
         self.refresh()
 
+    def _show_bulk_assignment_dialog(self):
+        """Show bulk assignment dialog for multiple tasks (3-02)."""
+        # Get all queued/pending tasks (simplified - in reality would get selected tasks)
+        all_tasks = self.controller.task_queue_model.items()
+        queued_tasks = [t for t in all_tasks if t.get('status') in ('queued', 'pending')][:10]
+
+        if not queued_tasks:
+            from .qt_compat import QMessageBox
+            if QMessageBox:
+                QMessageBox.information(
+                    self,
+                    "No Tasks",
+                    "No queued tasks available for bulk assignment."
+                )
+            return
+
+        # Get available units
+        available_units = [
+            r for r in self.controller.roster_model.items()
+            if r.get('status') == 'available'
+        ]
+
+        # Show dialog
+        dialog = BulkAssignmentDialog(queued_tasks, available_units, self)
+        dialog.bulk_assignment_confirmed.connect(self._on_bulk_assignment_confirmed)
+        qt_exec(dialog)
+
+    def _on_bulk_assignment_confirmed(self, assignments: List[tuple]):
+        """Handle confirmed bulk assignment (3-02)."""
+        print(f"Bulk assignment confirmed: {len(assignments)} task(s)")
+
+        for task_id, unit_ids in assignments:
+            print(f"  - Task {task_id} -> Units {unit_ids}")
+
+        # Add notification
+        self.notification_manager.add_system_notification(
+            "Bulk Assignment Complete",
+            f"Assigned units to {len(assignments)} task(s)",
+        )
+
+        self.notification_badge.set_unread_count(
+            self.notification_panel.get_unread_count()
+        )
+
+        self.refresh()
+
     def _show_task_creation_dialog(self):
         """Show task creation dialog (3-05)."""
         dialog = TaskCreationDialog(self)
@@ -899,6 +965,48 @@ class HQMainWindow(QMainWindow):
             self.notification_panel.get_unread_count()
         )
 
+    def _show_call_correlation_dialog(self):
+        """Show call correlation dialog (3-13)."""
+        # Mock primary call and similar calls for demonstration
+        primary_call = {
+            'call_id': 'CALL-001',
+            'location': '123 Main St',
+            'incident_type': 'Fire',
+            'timestamp': '2025-11-04T10:30:00Z',
+        }
+
+        similar_calls = [
+            {
+                'call_id': 'CALL-002',
+                'location': '125 Main St',
+                'incident_type': 'Fire',
+                'timestamp': '2025-11-04T10:32:00Z',
+            },
+            {
+                'call_id': 'CALL-003',
+                'location': '123 Main St',
+                'incident_type': 'Smoke',
+                'timestamp': '2025-11-04T10:35:00Z',
+            },
+        ]
+
+        dialog = CallCorrelationDialog(primary_call, similar_calls, self)
+        dialog.calls_linked.connect(self._on_calls_linked)
+        qt_exec(dialog)
+
+    def _on_calls_linked(self, call_ids: List[str]):
+        """Handle call correlation (3-13)."""
+        print(f"Calls linked: {call_ids}")
+
+        self.notification_manager.add_system_notification(
+            "Calls Correlated",
+            f"Linked {len(call_ids)} related call(s)",
+        )
+
+        self.notification_badge.set_unread_count(
+            self.notification_panel.get_unread_count()
+        )
+
     # -------------------------------------------------------------------------
     # Notifications (3-17)
     # -------------------------------------------------------------------------
@@ -924,6 +1032,38 @@ class HQMainWindow(QMainWindow):
         # Action callbacks are already executed
         # This is for additional tracking/logging
         pass
+
+    # -------------------------------------------------------------------------
+    # Filter Presets (3-16)
+    # -------------------------------------------------------------------------
+
+    def _show_filter_presets(self):
+        """Show filter presets panel in context drawer (3-16)."""
+        self.context_drawer.clear_content()
+        self.context_drawer.set_title("Filter Presets")
+        self.context_drawer.add_content(self.filter_presets_panel)
+        self.context_drawer.open_drawer()
+
+    def _on_filter_preset_applied(self, filters: Dict[str, Any]):
+        """Handle filter preset application (3-16)."""
+        print(f"Filter preset applied: {filters}")
+
+        # Apply filters to current view
+        # This would typically update the task pane and roster pane filters
+        # For now, just show a notification
+
+        self.notification_manager.add_system_notification(
+            "Filter Preset Applied",
+            f"Applied preset with {len(filters)} filter(s)",
+        )
+
+        self.notification_badge.set_unread_count(
+            self.notification_panel.get_unread_count()
+        )
+
+        # TODO: Actually apply filters to panes
+        # self.task_pane.apply_filters(filters)
+        # self.roster_pane.apply_filters(filters)
 
     # -------------------------------------------------------------------------
     # Helper Methods

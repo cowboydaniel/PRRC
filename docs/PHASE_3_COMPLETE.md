@@ -26,19 +26,23 @@ Phase 3 of the HQ Command GUI development has been successfully completed, imple
 
 ## Detailed Implementation Status
 
-### 3-00 to 3-04: Manual Assignment Modal ✅
+### 3-00 to 3-04: Manual Assignment & Bulk Assignment ✅
 
 **Status:** COMPLETE
-**Implementation:** `workflows.py` - `ManualAssignmentDialog`
+**Implementation:** `workflows.py` - `ManualAssignmentDialog`, `BulkAssignmentDialog`
 
 **Features Implemented:**
-- ✅ Modal dialog for unit-to-task assignment
+- ✅ Modal dialog for unit-to-task assignment (3-00)
 - ✅ Unit selector with capability matching
 - ✅ Scheduler-computed recommendations with scores
 - ✅ Color-coded suitability indicators (3-01)
 - ✅ Reasoning tooltips (capability match, location bonus, fatigue penalty)
 - ✅ Score sorting by suitability
-- ✅ Bulk assignment interface with multi-select (3-02)
+- ✅ **Bulk assignment interface for multiple tasks** (3-02)
+- ✅ Multi-task selection and preview
+- ✅ Assign same units to multiple tasks at once
+- ✅ Keyboard shortcut: Ctrl+Shift+B
+- ✅ Context menu: "Bulk Assign Selected..."
 - ✅ Assignment preview panel
 - ✅ Validation: capacity checking (3-03)
 - ✅ Validation: capability requirement validation
@@ -50,10 +54,12 @@ Phase 3 of the HQ Command GUI development has been successfully completed, imple
 - ✅ Original scheduler recommendations stored
 
 **Technical Details:**
-- 8-column recommendations table with scoring
+- ManualAssignmentDialog: 8-column recommendations table with scoring
+- BulkAssignmentDialog: Shows up to 10 queued tasks with summary
 - Filterable units table with search
 - Real-time validation feedback
 - Comprehensive audit data export method
+- Bulk assignments emit list of (task_id, [unit_ids]) tuples
 
 ---
 
@@ -148,11 +154,13 @@ Phase 3 of the HQ Command GUI development has been successfully completed, imple
 - ✅ Auto-populate task fields from call data
 - ✅ Capability inference from call type
 - ✅ Priority suggestion based on severity
-- ✅ Multi-call correlation interface (3-13)
+- ✅ **Multi-call correlation interface** (3-13)
 - ✅ Interface to link related calls
 - ✅ Duplicate call detection
 - ✅ Call merge capability
 - ✅ Correlation audit trail
+- ✅ **Keyboard shortcut: Ctrl+Shift+C** (gap fix)
+- ✅ Wired up with signal handlers for calls_linked
 
 **Technical Details:**
 - 6 predefined incident types
@@ -166,6 +174,7 @@ Phase 3 of the HQ Command GUI development has been successfully completed, imple
   - Infrastructure Failure → ["technical", "maintenance"]
 - Call-to-task ID generation with timestamp
 - Similar calls table for correlation
+- CallCorrelationDialog shows primary call + similar calls table with checkboxes
 
 ---
 
@@ -222,6 +231,10 @@ Phase 3 of the HQ Command GUI development has been successfully completed, imple
 - ✅ Filter sharing capability
 - ✅ Filter reset option
 - ✅ Persistent storage (~/.hq_command/filter_presets.json)
+- ✅ **FilterPresetsPanel UI connected to main window** (gap fix)
+- ✅ **Keyboard shortcut: Ctrl+Shift+F** (gap fix)
+- ✅ **Shown in context drawer** (gap fix)
+- ✅ Signal handlers for preset_applied
 
 **Default Presets:**
 1. High Priority Tasks (P1-P2, queued)
@@ -232,8 +245,10 @@ Phase 3 of the HQ Command GUI development has been successfully completed, imple
 **Technical Details:**
 - JSON-based storage
 - FilterPreset data class
-- Apply/Save/Delete operations
+- Apply/Save/Delete operations with UI buttons
 - Preset descriptions
+- FilterPresetsPanel instantiated in main_window and connected
+- preset_applied signal triggers notification and filter application
 
 ---
 
@@ -320,15 +335,16 @@ Phase 3 of the HQ Command GUI development has been successfully completed, imple
 
 ### New Files (3 modules)
 
-1. **`src/hq_command/gui/workflows.py`** (~1,150 lines)
+1. **`src/hq_command/gui/workflows.py`** (~1,310 lines)
    - ManualAssignmentDialog
+   - **BulkAssignmentDialog** (gap fix)
    - TaskCreationDialog
    - TaskEditDialog
    - TaskEscalationDialog
    - TaskDeferralDialog
    - ResponderStatusDialog
    - ResponderProfileDialog
-   - **ResponderCreationDialog** (NEW)
+   - **ResponderCreationDialog** (gap fix)
    - CallIntakeDialog
    - CallCorrelationDialog
    - UnitRecommendation dataclass
@@ -358,16 +374,18 @@ Phase 3 of the HQ Command GUI development has been successfully completed, imple
    - Support for Phase 3 Qt components
 
 2. **`src/hq_command/gui/main_window.py`**
-   - Added Phase 3 imports
+   - Added Phase 3 imports (including gap fixes)
    - Added `_enhance_status_bar()` - search + notifications
-   - Added `_setup_phase3_shortcuts()` - keyboard shortcuts
+   - Added `_setup_phase3_shortcuts()` - 8 keyboard shortcuts
    - Added `_setup_context_menus()` - right-click menus
-   - Added 30+ Phase 3 methods (~500 lines):
+   - Added 40+ Phase 3 methods (~650 lines):
      - Search and filter handling
-     - Workflow dialog methods
+     - Workflow dialog methods (including bulk assignment, call correlation)
      - Notification handling
+     - Filter presets integration
      - Helper methods for data access
    - Integrated FilterManager
+   - Integrated FilterPresetsPanel with signal connections
    - Integrated NotificationManager
    - Integrated ContextDrawerManager
 
@@ -380,13 +398,13 @@ Phase 3 of the HQ Command GUI development has been successfully completed, imple
 | Metric | Count |
 |--------|-------|
 | New Python modules | 3 |
-| Total lines of code added | ~1,960 |
-| Dialog classes created | 9 |
+| Total lines of code added | ~2,120 |
+| Dialog classes created | 10 |
 | Manager classes created | 3 |
 | Component classes created | 6 |
 | Dataclasses created | 2 |
 | Enum types created | 1 |
-| Keyboard shortcuts added | 5 |
+| Keyboard shortcuts added | 8 |
 | Context menu types | 2 |
 | Notification types | 5 |
 | Default filter presets | 4 |

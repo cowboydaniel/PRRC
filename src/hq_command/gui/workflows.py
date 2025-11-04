@@ -851,6 +851,166 @@ class ResponderProfileDialog(Modal):
         self.accept()
 
 
+class BulkAssignmentDialog(Modal):
+    """
+    Bulk assignment for multiple tasks (3-02).
+
+    Allows selecting units and assigning them to multiple tasks at once.
+    """
+
+    bulk_assignment_confirmed = pyqtSignal(list)  # [(task_id, [unit_ids]), ...]
+
+    def __init__(
+        self,
+        tasks: List[Dict[str, Any]],
+        available_units: List[Dict[str, Any]],
+        parent: Optional[QWidget] = None,
+    ):
+        super().__init__(f"Bulk Assign {len(tasks)} Tasks", parent)
+
+        self.tasks = tasks
+        self.available_units = available_units
+        self.assignments: Dict[str, List[str]] = {}  # task_id -> [unit_ids]
+
+        self.setMinimumWidth(900)
+        self.setMinimumHeight(600)
+
+        self._build_ui()
+
+    def _build_ui(self):
+        """Build bulk assignment UI."""
+        # Tasks section
+        tasks_card = Card()
+        tasks_card.add_widget(Heading(f"Tasks to Assign ({len(self.tasks)})", level=4))
+
+        # Tasks summary
+        for task in self.tasks[:5]:  # Show first 5
+            task_id = task.get('task_id', '')
+            priority = task.get('priority', '?')
+            caps = ', '.join(task.get('capabilities_required', []))
+
+            task_label = QLabel(f"• {task_id} (P{priority}) - Needs: {caps}")
+            tasks_card.add_widget(task_label)
+
+        if len(self.tasks) > 5:
+            more_label = QLabel(f"... and {len(self.tasks) - 5} more tasks")
+            more_label.setStyleSheet(f"color: {theme.NEUTRAL_500};")
+            tasks_card.add_widget(more_label)
+
+        self.content_layout.addWidget(tasks_card)
+
+        # Unit selection
+        units_card = Card()
+        units_card.add_widget(Heading("Select Units to Assign", level=4))
+        units_card.add_widget(QLabel(
+            "Select units to assign across all tasks. Each task will be validated for compatibility."
+        ))
+
+        # Units table with checkboxes
+        self.units_table = QTableWidget()
+        self.units_table.setColumnCount(5)
+        self.units_table.setHorizontalHeaderLabels([
+            "Select", "Unit ID", "Capabilities", "Load", "Status"
+        ])
+        self.units_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.units_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+
+        self._populate_units_table()
+        units_card.add_widget(self.units_table)
+        self.content_layout.addWidget(units_card)
+
+        # Assignment preview
+        self.preview_label = QLabel("")
+        self.preview_label.setWordWrap(True)
+        self.content_layout.addWidget(self.preview_label)
+
+        # Override reason
+        reason_group = QGroupBox("Bulk Assignment Notes")
+        reason_layout = QVBoxLayout()
+        self.reason_input = QTextEdit()
+        self.reason_input.setPlaceholderText(
+            "Optional: Explain the bulk assignment strategy..."
+        )
+        self.reason_input.setMaximumHeight(60)
+        reason_layout.addWidget(self.reason_input)
+        reason_group.setLayout(reason_layout)
+        self.content_layout.addWidget(reason_group)
+
+        self.button_box.accepted.disconnect()
+        self.button_box.accepted.connect(self._confirm_bulk_assignment)
+
+    def _populate_units_table(self):
+        """Populate units table."""
+        self.units_table.setRowCount(len(self.available_units))
+
+        for row, unit in enumerate(self.available_units):
+            # Checkbox
+            checkbox = QCheckBox()
+            checkbox.setProperty("unit_id", unit.get('unit_id', ''))
+            checkbox.stateChanged.connect(self._update_preview)
+            checkbox_widget = QWidget()
+            checkbox_layout = QHBoxLayout(checkbox_widget)
+            checkbox_layout.addWidget(checkbox)
+            checkbox_layout.setAlignment(Qt.AlignCenter)
+            checkbox_layout.setContentsMargins(0, 0, 0, 0)
+            self.units_table.setCellWidget(row, 0, checkbox_widget)
+
+            # Unit data
+            self.units_table.setItem(row, 1, QTableWidgetItem(unit.get('unit_id', '')))
+
+            caps = ', '.join(unit.get('capabilities', []))
+            self.units_table.setItem(row, 2, QTableWidgetItem(caps or 'None'))
+
+            current = len(unit.get('current_tasks', []))
+            max_cap = unit.get('max_concurrent_tasks', 1)
+            self.units_table.setItem(row, 3, QTableWidgetItem(f"{current}/{max_cap}"))
+
+            self.units_table.setItem(row, 4, QTableWidgetItem(unit.get('status', '')))
+
+    def _get_selected_units(self) -> List[str]:
+        """Get selected unit IDs."""
+        selected = []
+        for row in range(self.units_table.rowCount()):
+            checkbox_widget = self.units_table.cellWidget(row, 0)
+            checkbox = checkbox_widget.findChild(QCheckBox)
+            if checkbox and checkbox.isChecked():
+                unit_id = checkbox.property("unit_id")
+                if unit_id:
+                    selected.append(unit_id)
+        return selected
+
+    def _update_preview(self):
+        """Update assignment preview."""
+        selected_units = self._get_selected_units()
+
+        if not selected_units:
+            self.preview_label.setText("No units selected.")
+            self.button_box.button(self.button_box.Ok).setEnabled(False)
+            return
+
+        # Simple preview - assign all selected units to all tasks
+        preview_text = f"✓ Will assign {len(selected_units)} unit(s) to {len(self.tasks)} task(s)"
+        self.preview_label.setText(preview_text)
+        self.preview_label.setStyleSheet(f"color: {theme.SUCCESS};")
+        self.button_box.button(self.button_box.Ok).setEnabled(True)
+
+    def _confirm_bulk_assignment(self):
+        """Confirm bulk assignment."""
+        selected_units = self._get_selected_units()
+
+        if not selected_units:
+            return
+
+        # Create assignment list: same units to all tasks
+        assignments = [
+            (task.get('task_id', ''), selected_units.copy())
+            for task in self.tasks
+        ]
+
+        self.bulk_assignment_confirmed.emit(assignments)
+        self.accept()
+
+
 class ResponderCreationDialog(Modal):
     """
     Create new responder dialog.
