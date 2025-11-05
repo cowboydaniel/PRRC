@@ -326,7 +326,7 @@ class HQCommandController:
         if not updated:
             raise ValueError(f"No responder with unit_id '{unit_id}' present in roster")
 
-        self._state = ControllerState(tasks=self._state.tasks, responders=new_responders, telemetry=self._state.telemetry)
+        self._state = ControllerState(tasks=self._state.tasks, responders=new_responders, telemetry=self._state.telemetry, operator=self._state.operator)
         self.refresh_models()
 
     # ----------------------------------------------------------------- helpers
