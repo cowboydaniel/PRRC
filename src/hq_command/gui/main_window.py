@@ -270,7 +270,7 @@ class HQMainWindow(QMainWindow):
         self.roster_pane.filter_presets_requested.connect(
             lambda: self._show_filter_presets_panel("roster")
         )
-        self.roster_pane.create_requested.connect(self._show_roster_creation_dialog)
+        self.roster_pane.create_requested.connect(self._show_responder_creation_dialog)
         self.task_pane.filter_presets_requested.connect(
             lambda: self._show_filter_presets_panel("tasks")
         )
