@@ -276,12 +276,100 @@ class FieldOpsMainWindow(QMainWindow):
     def _apply_task_action(
         self, task_id: str, action: str, metadata: dict[str, object] | None = None
     ) -> None:
-        self._controller.apply_task_action(task_id, action, metadata=metadata)
-        self._refresh_state()
+        """Apply task action with validation and error feedback."""
+        # Validate task_id
+        if not task_id or not isinstance(task_id, str):
+            QMessageBox.warning(
+                self,
+                "Invalid Task",
+                "Invalid task ID. Please select a valid task."
+            )
+            return
+
+        # Validate action
+        valid_actions = {"accept", "decline", "complete", "cancel"}
+        if action not in valid_actions:
+            QMessageBox.warning(
+                self,
+                "Invalid Action",
+                f"Invalid action '{action}'. Valid actions: {', '.join(valid_actions)}"
+            )
+            return
+
+        # Validate metadata for completion action
+        if action == "complete" and metadata:
+            if "notes" in metadata and not isinstance(metadata["notes"], str):
+                QMessageBox.warning(
+                    self,
+                    "Invalid Metadata",
+                    "Completion notes must be a string."
+                )
+                return
+
+        try:
+            self._controller.apply_task_action(task_id, action, metadata=metadata)
+            self._refresh_state()
+
+            # Show success feedback
+            action_past = {
+                "accept": "accepted",
+                "decline": "declined",
+                "complete": "completed",
+                "cancel": "cancelled"
+            }.get(action, action)
+
+            self._top_bar.set_mesh_message(f"Task {action_past} successfully")
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Task Action Failed",
+                f"Failed to {action} task: {str(e)}\n\nPlease try again or contact support."
+            )
+            # Log the error for debugging
+            import logging
+            logging.error(f"Task action failed: {e}", exc_info=True)
 
     def _apply_resource_action(self, request_id: str, action: str) -> None:
-        self._controller.apply_resource_request_action(request_id, action)
-        self._refresh_state()
+        """Apply resource request action with validation and error feedback."""
+        # Validate request_id
+        if not request_id or not isinstance(request_id, str):
+            QMessageBox.warning(
+                self,
+                "Invalid Request",
+                "Invalid request ID. Please select a valid resource request."
+            )
+            return
+
+        # Validate action
+        valid_actions = {"fulfill", "cancel"}
+        if action not in valid_actions:
+            QMessageBox.warning(
+                self,
+                "Invalid Action",
+                f"Invalid action '{action}'. Valid actions: {', '.join(valid_actions)}"
+            )
+            return
+
+        try:
+            self._controller.apply_resource_request_action(request_id, action)
+            self._refresh_state()
+
+            # Show success feedback
+            action_past = {
+                "fulfill": "fulfilled",
+                "cancel": "cancelled"
+            }.get(action, action)
+
+            self._top_bar.set_mesh_message(f"Resource request {action_past} successfully")
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Resource Action Failed",
+                f"Failed to {action} resource request: {str(e)}\n\nPlease try again or contact support."
+            )
+            # Log the error for debugging
+            import logging
+            logging.error(f"Resource action failed: {e}", exc_info=True)
 
     def _toggle_offline_mode(self, enabled: bool) -> None:
         if self._sync_adapter is not None:
