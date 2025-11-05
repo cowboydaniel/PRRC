@@ -235,6 +235,12 @@ class FieldOpsIntegration:
         try:
             payload = TaskAssignmentPayload.from_dict(envelope.payload)
 
+            # Normalize task priorities to string format for FieldOps
+            # HQ may send int (1-5), we need string ("Routine", "High", "Critical")
+            for task in payload.tasks:
+                if "priority" in task:
+                    task["priority"] = priority_to_string(task["priority"])
+
             logger.info(
                 f"Received {len(payload.tasks)} task assignments from HQ "
                 f"(operator: {payload.operator_id})"
@@ -354,8 +360,11 @@ def integrate_with_gui_controller(
             # Convert tasks to GUI cards
             cards = []
             for task in payload.tasks:
-                # Convert priority from int to str using standardized mapping
-                priority_str = priority_to_string(task.get("priority", 3))
+                # Ensure priority is in string format for FieldOps GUI
+                # HQ may send int (1-5) or string ("Routine", "High", "Critical")
+                # Convert to standardized string format
+                priority_value = task.get("priority", 3)
+                priority_str = priority_to_string(priority_value)
 
                 card = TaskAssignmentCard(
                     task_id=task["task_id"],
