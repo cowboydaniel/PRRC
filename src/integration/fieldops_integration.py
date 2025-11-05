@@ -23,6 +23,12 @@ from .protocol import (
 )
 from .coordinator import IntegrationCoordinator
 
+# Import shared schemas - handle both package and module imports
+try:
+    from shared.schemas import priority_to_string
+except ImportError:
+    from ..shared.schemas import priority_to_string
+
 logger = logging.getLogger(__name__)
 
 
@@ -348,9 +354,8 @@ def integrate_with_gui_controller(
             # Convert tasks to GUI cards
             cards = []
             for task in payload.tasks:
-                # Convert priority from int to str
-                priority_map = {1: "Routine", 2: "Routine", 3: "High", 4: "High", 5: "Critical"}
-                priority_str = priority_map.get(task.get("priority", 3), "Routine")
+                # Convert priority from int to str using standardized mapping
+                priority_str = priority_to_string(task.get("priority", 3))
 
                 card = TaskAssignmentCard(
                     task_id=task["task_id"],
@@ -512,11 +517,11 @@ def integrate_with_telemetry(
                     "metrics": {
                         "sensors": [
                             {
-                                "id": s.id,
-                                "type": s.type,
-                                "value": s.value,
-                                "unit": s.unit,
-                                "timestamp": s.timestamp.isoformat(),
+                                "id": getattr(s, 'id', 'unknown'),
+                                "type": getattr(s, 'type', 'unknown'),
+                                "value": getattr(s, 'value', None),
+                                "unit": getattr(s, 'unit', ''),
+                                "timestamp": getattr(s, 'timestamp', snapshot.collected_at).isoformat(),
                             }
                             for s in snapshot.metrics.sensors
                         ],

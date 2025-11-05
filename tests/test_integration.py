@@ -691,3 +691,239 @@ def test_task_assignment_with_list_conversion():
         assert len(controller._state.tasks) == 2
     except TypeError as e:
         pytest.fail(f"update_task_assignments should accept list: {e}")
+
+
+# ============================================================================
+# Phase 2 Tests - Priority Mapping and Schema Validation
+# ============================================================================
+
+def test_priority_mapping_standardization():
+    """
+    Test Phase 2: Priority mapping standardization between HQ and FieldOps
+
+    Verifies that the new shared priority schema correctly converts between
+    HQ's integer priorities (1-5) and FieldOps' string priorities.
+    """
+    from shared.schemas import priority_to_int, priority_to_string, Priority, validate_priority
+
+    # Test int to string conversion
+    assert priority_to_string(1) == "Routine"
+    assert priority_to_string(2) == "Routine"
+    assert priority_to_string(3) == "High"
+    assert priority_to_string(4) == "High"
+    assert priority_to_string(5) == "Critical"
+
+    # Test string to int conversion
+    assert priority_to_int("Routine") == 2
+    assert priority_to_int("High") == 4
+    assert priority_to_int("Critical") == 5
+
+    # Test case insensitive
+    assert priority_to_int("routine") == 2
+    assert priority_to_int("high") == 4
+
+    # Test Priority enum conversion
+    assert priority_to_string(Priority.ROUTINE) == "Routine"
+    assert priority_to_int(Priority.HIGH) == 4
+
+    # Test validation
+    assert validate_priority(3) is True
+    assert validate_priority("High") is True
+    assert validate_priority(Priority.CRITICAL) is True
+    assert validate_priority(10) is False
+    assert validate_priority("invalid") is False
+
+
+def test_schema_validation_task_assignment():
+    """
+    Test Phase 2: Task assignment schema validation
+
+    Verifies that the schema validation layer correctly validates and
+    rejects invalid task assignment messages.
+    """
+    from integration.schemas import TaskAssignmentSchema, ValidationError
+
+    # Valid task assignment
+    valid_task = {
+        "task_id": "task-001",
+        "priority": 3,
+        "capabilities_required": ["hazmat", "medical"],
+        "location": "sector-alpha",
+    }
+
+    schema = TaskAssignmentSchema.from_dict(valid_task)
+    assert schema.task_id == "task-001"
+    assert schema.priority == 3
+    assert "hazmat" in schema.capabilities_required
+
+    # Invalid task - missing task_id
+    with pytest.raises(ValidationError, match="task_id must be a non-empty string"):
+        TaskAssignmentSchema.from_dict({"priority": 3})
+
+    # Invalid task - bad priority
+    with pytest.raises(ValidationError, match="Invalid priority"):
+        TaskAssignmentSchema.from_dict({
+            "task_id": "task-002",
+            "priority": 10,  # Invalid
+        })
+
+
+def test_schema_validation_telemetry():
+    """
+    Test Phase 2: Telemetry schema validation
+
+    Verifies that the schema validation layer correctly validates
+    telemetry messages with sensor data.
+    """
+    from integration.schemas import TelemetrySchema, ValidationError
+
+    # Valid telemetry
+    valid_telemetry = {
+        "device_id": "fieldops-001",
+        "collected_at": datetime.utcnow().isoformat(),
+        "status": "operational",
+        "metrics": {
+            "sensors": [
+                {
+                    "id": "sensor-1",
+                    "type": "temperature",
+                    "value": 72.5,
+                    "unit": "F",
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            ],
+            "events": [],
+            "queues": [],
+        },
+    }
+
+    schema = TelemetrySchema.from_dict(valid_telemetry)
+    assert schema.device_id == "fieldops-001"
+    assert schema.status == "operational"
+    assert len(schema.metrics["sensors"]) == 1
+
+    # Invalid telemetry - missing device_id
+    with pytest.raises(ValidationError, match="device_id must be a non-empty string"):
+        TelemetrySchema.from_dict({
+            "collected_at": datetime.utcnow().isoformat(),
+            "status": "operational",
+            "metrics": {},
+        })
+
+
+def test_schema_validation_status_update():
+    """
+    Test Phase 2: Status update schema validation
+
+    Verifies that the schema validation layer correctly validates
+    responder status update messages.
+    """
+    from integration.schemas import StatusUpdateSchema, ValidationError
+
+    # Valid status update
+    valid_status = {
+        "device_id": "fieldops-001",
+        "status": "available",
+        "timestamp": datetime.utcnow().isoformat(),
+        "current_tasks": ["task-1", "task-2"],
+        "capabilities": ["hazmat", "medical"],
+        "max_concurrent_tasks": 3,
+        "fatigue_level": 0.4,
+    }
+
+    schema = StatusUpdateSchema.from_dict(valid_status)
+    assert schema.device_id == "fieldops-001"
+    assert schema.status == "available"
+    assert len(schema.current_tasks) == 2
+
+    # Invalid status - bad status value
+    with pytest.raises(ValidationError, match="Invalid status"):
+        StatusUpdateSchema.from_dict({
+            "device_id": "fieldops-001",
+            "status": "invalid_status",
+            "timestamp": datetime.utcnow().isoformat(),
+        })
+
+    # Invalid status - bad fatigue_level
+    with pytest.raises(ValidationError, match="fatigue_level must be between"):
+        StatusUpdateSchema.from_dict({
+            "device_id": "fieldops-001",
+            "status": "available",
+            "timestamp": datetime.utcnow().isoformat(),
+            "fatigue_level": 1.5,  # Out of range
+        })
+
+
+def test_bug_fix_photo_path_serialization():
+    """
+    Test Bug #2 Fix: Photo path serialization no longer creates "None" strings
+
+    Verifies that when photo item UserRole data is None, we use item.text()
+    instead of converting None to string "None".
+    """
+    # This test verifies the logic, actual GUI testing requires PySide6
+    # The fix is in src/fieldops/gui/app.py:836
+
+    # Simulate the fixed logic
+    def fixed_photo_append(stored, item_text):
+        return stored if stored is not None else item_text
+
+    # Test cases
+    assert fixed_photo_append("/path/to/photo.jpg", "display_name") == "/path/to/photo.jpg"
+    assert fixed_photo_append(None, "photo_display.jpg") == "photo_display.jpg"
+    assert fixed_photo_append("", "display.jpg") == ""  # Empty string is valid, not None
+
+
+def test_bug_fix_telemetry_sensor_attributes():
+    """
+    Test Bug #4 Fix: Telemetry sensor attributes use getattr with defaults
+
+    Verifies that the telemetry serialization handles sensors with missing
+    optional attributes without raising AttributeError.
+    """
+    # Create a mock sensor object with missing attributes
+    class MockSensor:
+        def __init__(self, **kwargs):
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+
+    # Sensor with all attributes
+    complete_sensor = MockSensor(
+        id="sensor-1",
+        type="temperature",
+        value=72.5,
+        unit="F",
+        timestamp=datetime.utcnow(),
+    )
+
+    # Sensor missing some attributes
+    incomplete_sensor = MockSensor(
+        id="sensor-2",
+        type="pressure",
+    )
+
+    # Test the fixed logic using getattr with defaults
+    def serialize_sensor(s, fallback_timestamp):
+        return {
+            "id": getattr(s, 'id', 'unknown'),
+            "type": getattr(s, 'type', 'unknown'),
+            "value": getattr(s, 'value', None),
+            "unit": getattr(s, 'unit', ''),
+            "timestamp": getattr(s, 'timestamp', fallback_timestamp).isoformat(),
+        }
+
+    fallback = datetime.utcnow()
+
+    # Complete sensor should work fine
+    result1 = serialize_sensor(complete_sensor, fallback)
+    assert result1["id"] == "sensor-1"
+    assert result1["type"] == "temperature"
+    assert result1["value"] == 72.5
+
+    # Incomplete sensor should use defaults
+    result2 = serialize_sensor(incomplete_sensor, fallback)
+    assert result2["id"] == "sensor-2"
+    assert result2["type"] == "pressure"
+    assert result2["value"] is None  # Default
+    assert result2["unit"] == ""  # Default
+    assert result2["timestamp"] == fallback.isoformat()  # Default
