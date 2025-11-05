@@ -599,7 +599,7 @@ class TelemetryPane(QWidget):
 
     Features (Tasks 2-08 to 2-10):
     - Card-based grid layout
-    - Readiness score gauge (0-100)
+    - Active Devices display showing connected FieldOps units
     - Sensor state cards (nominal/warning/critical)
     - Alert summary card
     - Trend sparklines
@@ -611,8 +611,9 @@ class TelemetryPane(QWidget):
 
         self._model = model
         self._cards: Dict[str, MetricCard] = {}
-        self._readiness_gauge: Optional[GaugeChart] = None
         self._alert_card: Optional[AlertSummaryCard] = None
+        self._active_devices: Dict[str, Dict[str, Any]] = {}
+        self._devices_list: Optional[QWidget] = None
 
         self._setup_ui()
 
@@ -628,22 +629,35 @@ class TelemetryPane(QWidget):
         title = Heading("Telemetry Summary", level=3)
         layout.addWidget(title)
 
-        # Readiness score card (prominent)
-        readiness_card = MetricCard("Readiness Score", "0", "System operational status")
-        self._readiness_gauge = GaugeChart(
-            title="Readiness",
-            min_value=0,
-            max_value=100,
-            current_value=0,
-            style=GaugeStyle.CIRCULAR,
-        )
-        self._readiness_gauge.set_thresholds([
-            (0, theme.DANGER),
-            (50, theme.WARNING),
-            (75, theme.SUCCESS),
-        ])
-        readiness_card.add_chart(self._readiness_gauge)
-        layout.addWidget(readiness_card)
+        # Active Devices card (replaces Readiness Score)
+        from .components import Card
+        devices_card = Card()
+        devices_header = QHBoxLayout()
+        devices_header.addWidget(Heading("Active Devices", level=4))
+        devices_header.addStretch()
+        self._device_count_label = QLabel("0 connected")
+        self._device_count_label.setStyleSheet(f"color: {theme.TEXT_SECONDARY};")
+        devices_header.addWidget(self._device_count_label)
+
+        devices_card_widget = QWidget()
+        devices_card_layout = QVBoxLayout(devices_card_widget)
+        devices_card_layout.setContentsMargins(0, 0, 0, 0)
+        devices_card_layout.addLayout(devices_header)
+
+        # Scrollable list of devices
+        self._devices_list = QWidget()
+        self._devices_list_layout = QVBoxLayout(self._devices_list)
+        self._devices_list_layout.setContentsMargins(0, theme.SPACING_SM, 0, 0)
+        self._devices_list_layout.setSpacing(theme.SPACING_SM)
+
+        # Initial empty state
+        empty_label = QLabel("No devices connected")
+        empty_label.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; padding: {theme.SPACING_MD}px;")
+        self._devices_list_layout.addWidget(empty_label)
+
+        devices_card_layout.addWidget(self._devices_list)
+        devices_card.add_widget(devices_card_widget)
+        layout.addWidget(devices_card)
 
         # Alert summary card
         self._alert_card = AlertSummaryCard("System Alerts")
@@ -657,6 +671,78 @@ class TelemetryPane(QWidget):
 
         layout.addStretch()
 
+    def update_active_devices(self, devices: Dict[str, Dict[str, Any]]) -> None:
+        """Update the active devices display with current device information"""
+        self._active_devices = devices
+
+        # Clear existing device widgets
+        while self._devices_list_layout.count():
+            child = self._devices_list_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+
+        # Update count
+        device_count = len(devices)
+        self._device_count_label.setText(f"{device_count} connected")
+
+        if not devices:
+            # Show empty state
+            empty_label = QLabel("No devices connected")
+            empty_label.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; padding: {theme.SPACING_SM}px;")
+            self._devices_list_layout.addWidget(empty_label)
+        else:
+            # Show device list
+            for device_id, device_info in sorted(devices.items()):
+                device_widget = self._create_device_widget(device_id, device_info)
+                self._devices_list_layout.addWidget(device_widget)
+
+    def _create_device_widget(self, device_id: str, device_info: Dict[str, Any]) -> QWidget:
+        """Create a widget displaying a single device"""
+        widget = QFrame()
+        widget.setFrameShape(QFrame.StyledPanel)
+        widget.setStyleSheet(f"""
+            QFrame {{
+                background-color: {theme.SURFACE};
+                border: 1px solid {theme.BORDER};
+                border-radius: 4px;
+                padding: {theme.SPACING_SM}px;
+            }}
+        """)
+
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(theme.SPACING_SM, theme.SPACING_SM, theme.SPACING_SM, theme.SPACING_SM)
+        layout.setSpacing(4)
+
+        # Device ID and status badge
+        header = QHBoxLayout()
+        device_label = QLabel(f"<b>{device_id}</b>")
+        header.addWidget(device_label)
+        header.addStretch()
+
+        status = device_info.get("status", "unknown")
+        status_badge = Badge(status.capitalize(), BadgeType.SUCCESS if status == "available" else BadgeType.WARNING)
+        header.addWidget(status_badge)
+        layout.addLayout(header)
+
+        # Capabilities
+        capabilities = device_info.get("capabilities", [])
+        if capabilities:
+            caps_text = f"Capabilities: {', '.join(capabilities[:3])}"
+            if len(capabilities) > 3:
+                caps_text += f" +{len(capabilities) - 3} more"
+            caps_label = QLabel(caps_text)
+            caps_label.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: 11px;")
+            layout.addWidget(caps_label)
+
+        # Task info
+        current_tasks = device_info.get("current_task_count", 0)
+        max_tasks = device_info.get("max_concurrent_tasks", 1)
+        task_label = QLabel(f"Tasks: {current_tasks}/{max_tasks}")
+        task_label.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: 11px;")
+        layout.addWidget(task_label)
+
+        return widget
+
     def refresh(self) -> None:
         """Refresh telemetry data from model."""
         if not self._model:
@@ -669,15 +755,7 @@ class TelemetryPane(QWidget):
             metric = item.get("metric", "")
             value = item.get("value", "")
 
-            if metric == "readiness_score":
-                # Update readiness gauge
-                try:
-                    score = float(value)
-                    if self._readiness_gauge:
-                        self._readiness_gauge.set_value(score)
-                except (ValueError, TypeError):
-                    pass
-            elif metric == "critical_alerts":
+            if metric == "critical_alerts":
                 # Update alert card
                 try:
                     critical = int(value)
