@@ -24,6 +24,12 @@ from .protocol import (
 )
 from .coordinator import IntegrationCoordinator
 
+# Import priority conversion utilities
+try:
+    from shared.schemas import priority_to_string
+except ImportError:
+    from ..shared.schemas import priority_to_string
+
 logger = logging.getLogger(__name__)
 
 
@@ -101,9 +107,28 @@ class HQIntegration:
             True if tasks were sent successfully
         """
         try:
+            # Convert task data from HQ format to FieldOps format
+            # HQ Command uses int priorities (1-5), FieldOps expects string ("Routine", "High", "Critical")
+            # HQ Command uses frozenset for capabilities, FieldOps expects list
+            converted_tasks = []
+            for task in tasks:
+                task_copy = task.copy()
+
+                # Convert priority from int to string
+                if "priority" in task_copy:
+                    task_copy["priority"] = priority_to_string(task_copy["priority"])
+
+                # Convert capabilities_required from frozenset to list
+                if "capabilities_required" in task_copy:
+                    capabilities = task_copy["capabilities_required"]
+                    if isinstance(capabilities, frozenset):
+                        task_copy["capabilities_required"] = list(capabilities)
+
+                converted_tasks.append(task_copy)
+
             # Create message envelope
             envelope = create_task_assignment_message(
-                tasks=tasks,
+                tasks=converted_tasks,
                 operator_id=operator_id,
                 sender_id=self.coordinator.node_id,
                 recipient_id=unit_id,
@@ -300,11 +325,16 @@ def integrate_with_tasking_engine(
                 if unit_id not in unit_tasks:
                     unit_tasks[unit_id] = []
 
-                # Serialize the task
+                # Serialize the task with proper format conversions
+                capabilities = assignment.get("capabilities_required", [])
+                # Convert frozenset to list if needed
+                if isinstance(capabilities, frozenset):
+                    capabilities = list(capabilities)
+
                 task_dict = {
                     "task_id": assignment["task_id"],
                     "priority": assignment["priority"],
-                    "capabilities_required": assignment["capabilities_required"],
+                    "capabilities_required": capabilities,
                     "location": assignment.get("location"),
                 }
                 unit_tasks[unit_id].append(task_dict)
