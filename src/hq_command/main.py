@@ -14,6 +14,18 @@ from hq_command.tasking_engine import (  # type: ignore  # noqa: E402
     schedule_tasks_for_field_units,
 )
 
+# Integration imports
+try:
+    from integration import (
+        create_hq_coordinator,
+        HQIntegration,
+        integrate_with_tasking_engine,
+        setup_bridge_components,
+    )
+    INTEGRATION_AVAILABLE = True
+except ImportError:
+    INTEGRATION_AVAILABLE = False
+
 
 def _default_config_path() -> Path:
     """Return the default JSON config containing production task inputs."""
@@ -52,11 +64,46 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def setup_integration(hq_id: str = "hq_command") -> HQIntegration | None:
+    """
+    Set up HQ Command integration with Bridge and FieldOps
+
+    Args:
+        hq_id: ID of this HQ Command instance
+
+    Returns:
+        HQIntegration instance if available, None otherwise
+    """
+    if not INTEGRATION_AVAILABLE:
+        return None
+
+    try:
+        # Configure Bridge components
+        router, audit_log = setup_bridge_components()
+
+        # Create HQ coordinator
+        coordinator = create_hq_coordinator(router, audit_log, hq_id=hq_id)
+
+        # Create HQ integration
+        hq = HQIntegration(coordinator)
+
+        # Wire integration to tasking engine
+        import hq_command.tasking_engine as tasking_module
+        integrate_with_tasking_engine(hq, tasking_module)
+
+        return hq
+
+    except Exception as e:
+        print(f"Warning: Failed to set up integration: {e}", file=sys.stderr)
+        return None
+
+
 def run_production_mode(
     config_path: Path,
     *,
     stdout: IO[str] | None = None,
     stderr: IO[str] | None = None,
+    send_to_field: bool = False,
 ) -> int:
     """Execute the scheduler using structured JSON inputs for automation."""
 
@@ -78,6 +125,17 @@ def run_production_mode(
     result = schedule_tasks_for_field_units(tasks, responders)
     json.dump(result, out_stream, indent=2, sort_keys=True)
     out_stream.write("\n")
+
+    # If requested, send tasks to field units via Bridge
+    if send_to_field and INTEGRATION_AVAILABLE:
+        hq = setup_integration()
+        if hq:
+            import hq_command.tasking_engine as tasking_module
+            if hasattr(tasking_module, 'send_assignments_to_field'):
+                out_stream.write("\nSending task assignments to field units...\n")
+                send_results = tasking_module.send_assignments_to_field(result)
+                out_stream.write(f"Sent to {sum(send_results.values())} units successfully\n")
+
     return 0
 
 
