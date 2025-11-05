@@ -927,3 +927,125 @@ def test_bug_fix_telemetry_sensor_attributes():
     assert result2["value"] is None  # Default
     assert result2["unit"] == ""  # Default
     assert result2["timestamp"] == fallback.isoformat()  # Default
+
+
+# ============================================================================
+# Phase 3 Tests - Error Handling and Bug Fixes
+# ============================================================================
+
+def test_bug_fix_routing_record_dataclass():
+    """
+    Test Bug #5 Fix: Integration Coordinator uses proper RoutingRecord dataclass
+
+    Verifies that the coordinator uses a proper dataclass instead of
+    ad-hoc type() calls for routing results.
+    """
+    from integration.coordinator import RoutingRecord
+
+    # Test creating RoutingRecord
+    record = RoutingRecord(
+        status="delivered",
+        error=None,
+        message_id="msg-123"
+    )
+
+    assert record.status == "delivered"
+    assert record.error is None
+    assert record.message_id == "msg-123"
+    assert hasattr(record, "timestamp")
+
+    # Test failed routing
+    failed_record = RoutingRecord(
+        status="failed",
+        error="Connection timeout",
+        message_id="msg-456"
+    )
+
+    assert failed_record.status == "failed"
+    assert failed_record.error == "Connection timeout"
+
+
+def test_error_handling_standardization():
+    """
+    Test Phase 3: Error handling standardization module
+
+    Verifies that the error handling module provides consistent
+    error classes and utilities.
+    """
+    from shared.error_handling import (
+        PRRCError,
+        IntegrationError,
+        ValidationError,
+        ErrorSeverity,
+        ErrorContext,
+        safe_execute
+    )
+
+    # Test PRRCError base class
+    error = PRRCError(
+        "Test error message",
+        severity=ErrorSeverity.WARNING,
+        context={"test": "value"}
+    )
+
+    assert error.message == "Test error message"
+    assert error.severity == ErrorSeverity.WARNING
+    assert error.context["test"] == "value"
+    assert error.user_message is not None
+
+    # Test specific error classes
+    int_error = IntegrationError("Integration failed")
+    assert isinstance(int_error, PRRCError)
+    assert "Communication error" in int_error.user_message
+
+    val_error = ValidationError("Invalid value", field_name="priority")
+    assert isinstance(val_error, PRRCError)
+    assert val_error.context["field_name"] == "priority"
+
+    # Test ErrorContext
+    with ErrorContext("test_operation") as ctx:
+        ctx.add_error(PRRCError("Test error 1"))
+        ctx.add_warning(PRRCError("Test warning 1", severity=ErrorSeverity.WARNING))
+
+    assert ctx.has_errors()
+    assert ctx.has_warnings()
+    assert ctx.error_count == 1
+    assert ctx.warning_count == 1
+
+    # Test safe_execute
+    def failing_function():
+        raise ValueError("Test failure")
+
+    result, error = safe_execute(failing_function, log_errors=False)
+    assert result is None
+    assert error is not None
+    assert isinstance(error, PRRCError)
+
+    def success_function():
+        return "success"
+
+    result, error = safe_execute(success_function)
+    assert result == "success"
+    assert error is None
+
+
+def test_integration_with_error_handling():
+    """
+    Test that integration schemas properly use the standardized ValidationError
+
+    Verifies that validation errors from integration schemas are instances
+    of the standardized ValidationError class.
+    """
+    from integration.schemas import TaskAssignmentSchema
+    from shared.error_handling import ValidationError
+
+    # This should raise a ValidationError
+    try:
+        TaskAssignmentSchema.from_dict({"priority": 3})  # Missing task_id
+        assert False, "Should have raised ValidationError"
+    except ValidationError as e:
+        # Verify it's the standardized error class
+        assert hasattr(e, 'severity')
+        assert hasattr(e, 'user_message')
+        assert hasattr(e, 'context')
+        assert "task_id" in str(e.message)

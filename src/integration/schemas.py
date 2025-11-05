@@ -15,13 +15,10 @@ from typing import Any, Dict, List, Optional, Union
 # Import shared schemas - handle both package and module imports
 try:
     from shared.schemas import validate_priority, priority_to_int, priority_to_string
+    from shared.error_handling import ValidationError
 except ImportError:
     from ..shared.schemas import validate_priority, priority_to_int, priority_to_string
-
-
-class ValidationError(Exception):
-    """Raised when message payload validation fails."""
-    pass
+    from ..shared.error_handling import ValidationError
 
 
 @dataclass

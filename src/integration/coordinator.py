@@ -43,6 +43,23 @@ class HandlerRegistration:
     description: str
 
 
+@dataclass
+class RoutingRecord:
+    """
+    Result of routing a message through the Bridge.
+
+    Attributes:
+        status: Delivery status ("delivered", "failed", "pending")
+        error: Error message if delivery failed, None otherwise
+        timestamp: When the routing occurred
+        message_id: ID of the message that was routed
+    """
+    status: str
+    error: str | None = None
+    timestamp: datetime = field(default_factory=datetime.utcnow)
+    message_id: str | None = None
+
+
 # ============================================================================
 # Integration Coordinator
 # ============================================================================
@@ -147,11 +164,12 @@ class IntegrationCoordinator:
             # Route through Bridge
             result = self.router.route(partner_id, payload)
 
-            # Extract status from result
-            routing_record = type('RoutingRecord', (), {
-                'status': result.get('status', 'failed'),
-                'error': result.get('error')
-            })()
+            # Create routing record from result
+            routing_record = RoutingRecord(
+                status=result.get('status', 'failed'),
+                error=result.get('error'),
+                message_id=envelope.message_id
+            )
 
             if routing_record.status == "delivered":
                 self._sent_count += 1
