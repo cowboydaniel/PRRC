@@ -367,13 +367,22 @@ def integrate_with_gui_controller(
             # Get existing tasks from the private baseline (controller maintains this)
             existing_tasks = getattr(gui_controller, '_task_baseline', {})
 
+            # Validate and convert _task_baseline to dict if needed
+            if not isinstance(existing_tasks, dict):
+                # Convert to dict by task_id if it's a sequence
+                if hasattr(existing_tasks, '__iter__'):
+                    existing_tasks = {task.task_id: task for task in existing_tasks if hasattr(task, 'task_id')}
+                else:
+                    existing_tasks = {}
+
             # Merge new cards with existing tasks (new tasks override by task_id)
             merged_tasks = dict(existing_tasks)
             for card in cards:
                 merged_tasks[card.task_id] = card
 
             # Update through controller (which rebuilds immutable state)
-            gui_controller.update_task_assignments(merged_tasks.values())
+            # Convert values to list before passing
+            gui_controller.update_task_assignments(list(merged_tasks.values()))
 
             logger.info(f"Updated GUI with {len(cards)} new tasks ({len(merged_tasks)} total)")
 
