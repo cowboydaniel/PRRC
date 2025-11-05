@@ -48,6 +48,7 @@ QShortcut = QtGui.QShortcut
 QAbstractItemView = QtWidgets.QAbstractItemView
 QApplication = QtWidgets.QApplication
 QCheckBox = QtWidgets.QCheckBox
+QTabWidget = QtWidgets.QTabWidget
 QComboBox = QtWidgets.QComboBox
 QDialog = QtWidgets.QDialog
 QDialogButtonBox = QtWidgets.QDialogButtonBox
