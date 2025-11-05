@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
 )
 
 from .controller import FieldOpsGUIController, SyncAdapter
+from .dialogs import FieldOpsConfig, FirstRunDialog, JobAcceptanceDialog
 from .state import (
     GPSFix,
     MissionAttachmentLink,
@@ -105,6 +106,7 @@ class FieldOpsMainWindow(QMainWindow):
         telemetry_provider: Callable[[], TelemetrySnapshot] = collect_telemetry_snapshot,
         sync_adapter: LocalEchoSyncAdapter | None = None,
         demo_package: Path | None = None,
+        config: FieldOpsConfig | None = None,
     ) -> None:
         super().__init__()
         self.setWindowTitle("FieldOps Command Tablet")
@@ -112,6 +114,7 @@ class FieldOpsMainWindow(QMainWindow):
         self._telemetry_provider = telemetry_provider
         self._sync_adapter = sync_adapter
         self._demo_package = demo_package
+        self._config = config or FieldOpsConfig()
         self._state = controller.get_state()
         self._snapshot: TelemetrySnapshot | None = None
         self._styles = component_styles()
@@ -775,9 +778,7 @@ class TaskDashboardView(QWidget):
         accept_button.setMinimumHeight(MIN_CONTROL_HEIGHT_PX)
         accept_enabled = task.display_status.lower() not in {"accepted", "completed"}
         accept_button.setEnabled(accept_enabled)
-        accept_button.clicked.connect(
-            lambda _=None, task_id=task.task_id: self._action_callback(task_id, "accept", None)
-        )  # type: ignore[arg-type]
+        accept_button.clicked.connect(lambda _=None, t=task: self._open_job_acceptance_dialog(t))
         action_row.addWidget(accept_button)
 
         complete_button = QPushButton("Complete")
@@ -802,6 +803,13 @@ class TaskDashboardView(QWidget):
 
         card_layout.addLayout(action_row)
         return card
+
+    def _open_job_acceptance_dialog(self, task: TaskAssignmentCard) -> None:
+        """Open job acceptance dialog to collect team info before accepting."""
+        dialog = JobAcceptanceDialog(task.task_id, task.title, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            metadata = dialog.get_job_metadata()
+            self._action_callback(task.task_id, "accept", metadata)
 
     def _open_completion_dialog(self, task: TaskAssignmentCard) -> None:
         dialog = TaskCompletionDialog(task, self)
@@ -1196,6 +1204,19 @@ def launch_app(*, demo_mode: bool = False) -> int:
     """Launch the FieldOps GUI application."""
 
     app = QApplication.instance() or QApplication(sys.argv)
+
+    # Load or create configuration
+    config = FieldOpsConfig()
+
+    # Show first run dialog if needed
+    if config.is_first_run():
+        first_run_dialog = FirstRunDialog()
+        if first_run_dialog.exec() == QDialog.DialogCode.Accepted:
+            config.save_config(first_run_dialog.get_configuration())
+        else:
+            # User cancelled first run setup, exit application
+            return 0
+
     cache_path = Path.home() / ".prrc" / "fieldops_offline_queue.json"
     adapter = LocalEchoSyncAdapter()
     controller = FieldOpsGUIController(cache_path, adapter)
@@ -1205,6 +1226,7 @@ def launch_app(*, demo_mode: bool = False) -> int:
         telemetry_provider=collect_telemetry_snapshot,
         sync_adapter=adapter,
         demo_package=demo_package,
+        config=config,
     )
     try:
         window.showMaximized()
