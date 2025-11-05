@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Optional, List, Dict, Any, Mapping
 from collections import Counter
 from pathlib import Path
+import logging
 
 from .controller import HQCommandController
 from .qt_compat import (
@@ -82,6 +83,8 @@ from .search_filter import (
 )
 
 from hq_command.security import build_default_role_context, RoleContext
+
+logger = logging.getLogger(__name__)
 
 
 class HQMainWindow(QMainWindow):
@@ -1009,7 +1012,7 @@ class HQMainWindow(QMainWindow):
     def _on_assignment_confirmed(self, task_id: str, unit_ids: List[str]):
         """Handle confirmed assignment (3-04)."""
         # Log assignment (audit trail would be captured here)
-        print(f"Assignment confirmed: Task {task_id} -> Units {unit_ids}")
+        logger.info(f"Assignment confirmed: Task {task_id} -> Units {unit_ids}")
 
         # Add notification
         self.notification_manager.add_assignment_notification(
@@ -1059,7 +1062,7 @@ class HQMainWindow(QMainWindow):
 
     def _on_task_created(self, task_data: Dict[str, Any]):
         """Handle task creation (3-05)."""
-        print(f"Task created: {task_data}")
+        logger.info(f"Task created: {task_data}")
 
         # Add notification
         self.notification_manager.add_system_notification(
@@ -1081,7 +1084,7 @@ class HQMainWindow(QMainWindow):
 
     def _on_task_updated(self, task_id: str, updated_data: Dict[str, Any]):
         """Handle task update (3-06)."""
-        print(f"Task {task_id} updated: {updated_data}")
+        logger.info(f"Task {task_id} updated: {updated_data}")
 
         self.notification_manager.add_system_notification(
             "Task Updated",
@@ -1102,7 +1105,7 @@ class HQMainWindow(QMainWindow):
 
     def _on_escalation_confirmed(self, task_id: str, reason: str):
         """Handle task escalation (3-07)."""
-        print(f"Task {task_id} escalated: {reason}")
+        logger.info(f"Task {task_id} escalated: {reason}")
 
         self.notification_manager.add_escalation_notification(
             task_id,
@@ -1130,7 +1133,7 @@ class HQMainWindow(QMainWindow):
 
     def _on_deferral_confirmed(self, task_id: str, reason: str, duration: int):
         """Handle task deferral (3-08)."""
-        print(f"Task {task_id} deferred for {duration} minutes: {reason}")
+        logger.info(f"Task {task_id} deferred for {duration} minutes: {reason}")
 
         self.notification_manager.add_system_notification(
             "Task Deferred",
@@ -1162,7 +1165,7 @@ class HQMainWindow(QMainWindow):
 
     def _on_status_changed(self, unit_id: str, changes: Dict[str, Any]):
         """Handle responder status change (3-09)."""
-        print(f"Status changed for {unit_id}: {changes}")
+        logger.info(f"Status changed for {unit_id}: {changes}")
 
         self.notification_manager.add_system_notification(
             "Responder Status Changed",
@@ -1183,7 +1186,7 @@ class HQMainWindow(QMainWindow):
 
     def _on_profile_updated(self, unit_id: str, updates: Dict[str, Any]):
         """Handle responder profile update (3-10)."""
-        print(f"Profile updated for {unit_id}: {updates}")
+        logger.info(f"Profile updated for {unit_id}: {updates}")
 
         self.notification_manager.add_system_notification(
             "Responder Profile Updated",
@@ -1204,7 +1207,7 @@ class HQMainWindow(QMainWindow):
 
     def _on_responder_created(self, responder_data: Dict[str, Any]):
         """Handle new responder creation."""
-        print(f"New responder created: {responder_data}")
+        logger.info(f"New responder created: {responder_data}")
 
         # TODO: Add responder to controller/data model
         # For now, just notify
@@ -1230,7 +1233,7 @@ class HQMainWindow(QMainWindow):
 
     def _on_call_submitted(self, call_data: Dict[str, Any]):
         """Handle call submission (3-11)."""
-        print(f"Call submitted: {call_data}")
+        logger.info(f"Call submitted: {call_data}")
 
         self.call_log.append(call_data)
         self._update_call_actions()
