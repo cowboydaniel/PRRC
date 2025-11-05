@@ -249,16 +249,27 @@ class IntegrationCoordinator:
         This will:
         1. Audit the incoming message
         2. Dispatch to registered handlers
-        3. Send acknowledgement back to sender
+        3. Send acknowledgement back to sender (unless message is already an acknowledgement)
         """
         try:
             # Audit the inbound message
             self._audit_inbound(envelope)
 
+            # Don't send acknowledgements for acknowledgement messages (prevents infinite loop)
+            is_ack = envelope.message_type == MessageType.ACKNOWLEDGEMENT
+
             # Dispatch to handlers
             handlers = self._handlers.get(envelope.message_type, [])
 
             if not handlers:
+                # For acknowledgement messages, it's normal not to have handlers
+                if is_ack:
+                    logger.debug(
+                        f"Received acknowledgement: {envelope.message_id}"
+                    )
+                    self._received_count += 1
+                    return
+
                 logger.warning(
                     f"No handlers registered for {envelope.message_type.value}"
                 )
@@ -280,24 +291,29 @@ class IntegrationCoordinator:
                         f"Handler {registration.description} failed: {e}",
                         exc_info=True,
                     )
-                    self._send_ack(
-                        envelope,
-                        status="failed",
-                        details=f"Handler error: {str(e)}",
-                    )
+                    # Only send ack for non-ack messages
+                    if not is_ack:
+                        self._send_ack(
+                            envelope,
+                            status="failed",
+                            details=f"Handler error: {str(e)}",
+                        )
                     return
 
-            # Send success acknowledgement
-            self._send_ack(envelope, status="completed")
+            # Send success acknowledgement (only for non-ack messages)
+            if not is_ack:
+                self._send_ack(envelope, status="completed")
             self._received_count += 1
 
         except Exception as e:
             logger.error(f"Error receiving message: {e}", exc_info=True)
-            self._send_ack(
-                envelope,
-                status="failed",
-                details=f"Processing error: {str(e)}",
-            )
+            # Only send ack for non-ack messages
+            if envelope.message_type != MessageType.ACKNOWLEDGEMENT:
+                self._send_ack(
+                    envelope,
+                    status="failed",
+                    details=f"Processing error: {str(e)}",
+                )
 
     def retry_failed_messages(self) -> int:
         """

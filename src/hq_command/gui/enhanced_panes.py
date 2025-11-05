@@ -702,8 +702,8 @@ class TelemetryPane(QWidget):
         widget.setFrameShape(QFrame.StyledPanel)
         widget.setStyleSheet(f"""
             QFrame {{
-                background-color: {theme.SURFACE};
-                border: 1px solid {theme.BORDER};
+                background-color: {theme.BACKGROUND_SECONDARY};
+                border: 1px solid {theme.BORDER_COLOR};
                 border-radius: 4px;
                 padding: {theme.SPACING_SM}px;
             }}
