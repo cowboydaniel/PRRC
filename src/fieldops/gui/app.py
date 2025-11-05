@@ -833,7 +833,7 @@ class TaskCompletionDialog(QDialog):
         for index in range(self._photo_list.count()):
             item = self._photo_list.item(index)
             stored = item.data(Qt.ItemDataRole.UserRole)
-            photos.append(str(stored or item.text()))
+            photos.append(stored if stored is not None else item.text())
         incidents = [self._incident_list.item(i).text() for i in range(self._incident_list.count())]
         debrief_notes = self._debrief_notes.toPlainText().strip()
 
