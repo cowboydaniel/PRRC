@@ -1122,8 +1122,6 @@ def launch_app(*, demo_mode: bool = False) -> int:
         window.showMaximized()
     except AttributeError:  # pragma: no cover - compatibility guard
         window.show()
-    else:
-        window.show()
     return app.exec()
 
 

@@ -348,19 +348,34 @@ def integrate_with_gui_controller(
             # Convert tasks to GUI cards
             cards = []
             for task in payload.tasks:
+                # Convert priority from int to str
+                priority_map = {1: "Routine", 2: "Routine", 3: "High", 4: "High", 5: "Critical"}
+                priority_str = priority_map.get(task.get("priority", 3), "Routine")
+
                 card = TaskAssignmentCard(
                     task_id=task["task_id"],
-                    priority=task["priority"],
-                    capabilities=task["capabilities_required"],
+                    title=task.get("location") or f"Task {task['task_id']}",
                     status="pending",
+                    priority=priority_str,
+                    display_status="Pending Assignment",
+                    summary=f"Required: {', '.join(task.get('capabilities_required', []))}",
+                    location=task.get("location"),
                 )
                 cards.append(card)
 
-            # Update GUI state
-            current_state = gui_controller.get_state()
-            current_state.task_dashboard.assignments.extend(cards)
+            # Update GUI state by merging new tasks with existing baseline
+            # Get existing tasks from the private baseline (controller maintains this)
+            existing_tasks = getattr(gui_controller, '_task_baseline', {})
 
-            logger.info(f"Updated GUI with {len(cards)} new tasks")
+            # Merge new cards with existing tasks (new tasks override by task_id)
+            merged_tasks = dict(existing_tasks)
+            for card in cards:
+                merged_tasks[card.task_id] = card
+
+            # Update through controller (which rebuilds immutable state)
+            gui_controller.update_task_assignments(merged_tasks.values())
+
+            logger.info(f"Updated GUI with {len(cards)} new tasks ({len(merged_tasks)} total)")
 
         except Exception as e:
             logger.error(f"Error updating GUI with tasks: {e}", exc_info=True)
@@ -402,6 +417,7 @@ def create_bridge_sync_adapter(fieldops: FieldOpsIntegration):
             """
             # Serialize operations
             serialized = []
+            failed_ids = []
             for op in operations:
                 try:
                     op_dict = {
@@ -413,6 +429,7 @@ def create_bridge_sync_adapter(fieldops: FieldOpsIntegration):
                     serialized.append(op_dict)
                 except Exception as e:
                     logger.error(f"Error serializing operation {op.id}: {e}")
+                    failed_ids.append(op.id)
                     continue
 
             # Send through Bridge
@@ -421,9 +438,9 @@ def create_bridge_sync_adapter(fieldops: FieldOpsIntegration):
             # Return result
             if success:
                 return {
-                    "accepted": [op.id for op in operations],
-                    "rejected": [],
-                    "errors": [],
+                    "accepted": [op.id for op in operations if op.id not in failed_ids],
+                    "rejected": failed_ids,
+                    "errors": [f"Serialization failed: {fid}" for fid in failed_ids],
                 }
             else:
                 return {
