@@ -11,11 +11,18 @@ try:  # pragma: no cover - import guard for headless environments
     from .controller import HQCommandController
     from .main_window import HQMainWindow
     from .qt_compat import QtCore, QtWidgets
-except ImportError:  # pragma: no cover - PySide6 missing
-    HQCommandController = None  # type: ignore[assignment]
-    HQMainWindow = None  # type: ignore[assignment]
-    QtCore = None  # type: ignore[assignment]
-    QtWidgets = None  # type: ignore[assignment]
+except ImportError as e:  # pragma: no cover - PySide6 missing
+    error_msg = """
+    Failed to import required GUI components. This is likely because PySide6 is not properly installed.
+    
+    Please install PySide6 using one of these commands:
+    - pip install pyside6
+    - pip install -r requirements.txt  # if you have a requirements file
+    
+    Original error: {}
+    """.format(str(e))
+    print(error_msg, file=sys.stderr)
+    raise ImportError(error_msg) from e
 
 # Integration imports
 try:
@@ -64,9 +71,7 @@ def _start_timer(timer: Any) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    if HQCommandController is None or HQMainWindow is None or QtWidgets is None or QtCore is None:
-        raise RuntimeError("PySide6 is required to launch the HQ Command GUI.")
-
+    # The imports are now handled at the module level with proper error messages
     parser = build_parser()
     args = parser.parse_args(argv)
 
