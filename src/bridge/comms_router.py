@@ -168,6 +168,34 @@ class SecureFileDropAdapter(ProtocolAdapter):
         }
 
 
+class LocalMessageBusAdapter(ProtocolAdapter):
+    """Adapter for local file-based message bus"""
+    protocol = "local"
+
+    def send(self, endpoint: PartnerEndpoint, payload: Mapping[str, Any]) -> Dict[str, Any]:
+        """Send message via local message bus"""
+        try:
+            from .local_message_bus import get_message_bus
+
+            bus = get_message_bus()
+
+            # Extract sender and recipient from payload
+            sender = payload.get("sender_id", "unknown")
+            recipient = endpoint.target  # Use target as recipient ID
+
+            # Send message
+            message_id = bus.send(sender, recipient, dict(payload))
+
+            return {
+                "message_id": message_id,
+                "recipient": recipient,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+
+        except Exception as e:
+            raise PartnerDeliveryError(f"Failed to send via local message bus: {e}")
+
+
 class BridgeCommsRouter:
     """Route payloads to partner endpoints with retries and auditing hooks."""
 
@@ -186,6 +214,7 @@ class BridgeCommsRouter:
             "rest": RestProtocolAdapter(),
             "mq": MessageQueueAdapter(),
             "secure_file_drop": SecureFileDropAdapter(),
+            "local": LocalMessageBusAdapter(),
         }
         if adapters:
             self._adapters.update(adapters)

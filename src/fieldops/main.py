@@ -21,6 +21,7 @@ try:
         FieldOpsIntegration,
         create_bridge_sync_adapter,
         setup_bridge_components,
+        start_message_polling,
     )
     INTEGRATION_AVAILABLE = True
 except ImportError:
@@ -49,6 +50,9 @@ def setup_integration(device_id: str = "fieldops_001") -> FieldOpsIntegration | 
 
         # Create FieldOps integration
         fieldops = FieldOpsIntegration(coordinator)
+
+        # Start polling for messages from HQ Command
+        start_message_polling(coordinator)
 
         return fieldops
 

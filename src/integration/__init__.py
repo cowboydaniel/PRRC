@@ -71,6 +71,7 @@ from .coordinator import (
     create_hq_coordinator,
     create_fieldops_coordinator,
     PersistentMessageQueue,
+    start_message_polling,
 )
 
 from .hq_integration import (
@@ -113,6 +114,7 @@ __all__ = [
     "create_hq_coordinator",
     "create_fieldops_coordinator",
     "PersistentMessageQueue",
+    "start_message_polling",
     # HQ Integration
     "HQIntegration",
     "integrate_with_tasking_engine",
