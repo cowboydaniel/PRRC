@@ -84,6 +84,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         if integration:
             print(f"FieldOps integration enabled (device: {args.device_id})")
 
+            # Send initial status update to register with HQ Command
+            integration.send_status_update_to_hq(
+                status="available",
+                capabilities=["basic_response", "transport", "communication"],
+                max_concurrent_tasks=3,
+                current_task_count=0,
+                fatigue_level=0.0,
+            )
+            print(f"Sent initial status update to HQ Command")
+
     return launch_app(demo_mode=args.demo)
 
 
