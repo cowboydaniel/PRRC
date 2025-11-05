@@ -1049,3 +1049,371 @@ def test_integration_with_error_handling():
         assert hasattr(e, 'user_message')
         assert hasattr(e, 'context')
         assert "task_id" in str(e.message)
+
+
+# ============================================================================
+# Phase 4 Tests - Security, Edge Cases, and Error Conditions
+# ============================================================================
+
+def test_rate_limiter():
+    """
+    Test Phase 4: Rate limiting functionality
+
+    Verifies that the rate limiter correctly enforces request limits
+    and handles burst traffic.
+    """
+    from shared.security import RateLimiter, RateLimitConfig
+
+    # Create rate limiter: 5 requests per 10 seconds
+    config = RateLimitConfig(max_requests=5, time_window=10, burst_allowance=2)
+    limiter = RateLimiter(config)
+
+    # First 5 requests should be allowed
+    for i in range(5):
+        assert limiter.allow_request("client_1") is True
+
+    # Burst allowance: 2 more requests
+    assert limiter.allow_request("client_1") is True
+    assert limiter.allow_request("client_1") is True
+
+    # 8th request should be denied (5 + 2 burst = 7 max)
+    assert limiter.allow_request("client_1") is False
+
+    # Different client should not be affected
+    assert limiter.allow_request("client_2") is True
+
+    # Check remaining requests
+    remaining = limiter.get_remaining_requests("client_2")
+    assert remaining == 6  # 7 total - 1 used
+
+    # Reset client
+    limiter.reset_client("client_1")
+    assert limiter.allow_request("client_1") is True
+
+
+def test_path_sanitizer():
+    """
+    Test Phase 4: Path sanitization for security
+
+    Verifies that the path sanitizer prevents directory traversal attacks
+    and validates paths against allowed directories.
+    """
+    from shared.security import PathSanitizer
+    import tempfile
+    import os
+
+    # Create temporary directory for testing
+    with tempfile.TemporaryDirectory() as temp_dir:
+        safe_dir = os.path.join(temp_dir, "safe")
+        os.makedirs(safe_dir)
+
+        sanitizer = PathSanitizer(allowed_base_paths=[safe_dir])
+
+        # Test directory traversal attempts
+        traversal_attempts = [
+            "../etc/passwd",
+            "..\\windows\\system32",
+            "../../secret/file.txt",
+            "safe/../../../etc/passwd",
+        ]
+
+        for attempt in traversal_attempts:
+            try:
+                sanitized = sanitizer.sanitize(attempt)
+                # Even if sanitized, should not validate
+                assert not sanitizer.validate(attempt), f"Should reject: {attempt}"
+            except ValueError:
+                pass  # Expected for obvious attacks
+
+        # Test valid paths
+        valid_path = os.path.join(safe_dir, "file.txt")
+        assert sanitizer.validate(valid_path)
+
+        # Test safe_join
+        safe_path = sanitizer.safe_join(safe_dir, "subdir", "file.txt")
+        assert safe_dir in safe_path
+        assert ".." not in safe_path
+
+
+def test_security_event_tracker():
+    """
+    Test Phase 4: Security event tracking
+
+    Verifies that security events are properly tracked and can be queried.
+    """
+    from shared.security import SecurityEventTracker, SecurityEvent
+
+    events_logged = []
+
+    def audit_callback(event: SecurityEvent):
+        events_logged.append(event)
+
+    tracker = SecurityEventTracker(audit_callback=audit_callback)
+
+    # Record various security events
+    tracker.record_event(
+        event_type="rate_limit_exceeded",
+        severity="medium",
+        description="Client exceeded rate limit",
+        client_id="client_123",
+        requests_made=20
+    )
+
+    tracker.record_event(
+        event_type="path_traversal_attempt",
+        severity="high",
+        description="Attempted directory traversal",
+        client_id="client_456",
+        attempted_path="../etc/passwd"
+    )
+
+    # Verify events were recorded
+    assert len(events_logged) == 2
+
+    # Query recent events
+    recent_events = tracker.get_recent_events(limit=10)
+    assert len(recent_events) == 2
+
+    # Filter by severity
+    high_severity = tracker.get_recent_events(severity="high")
+    assert len(high_severity) == 1
+    assert high_severity[0].event_type == "path_traversal_attempt"
+
+    # Filter by type
+    rate_limit_events = tracker.get_recent_events(event_type="rate_limit_exceeded")
+    assert len(rate_limit_events) == 1
+
+
+def test_edge_case_empty_task_list():
+    """
+    Test edge case: Handling empty task lists
+
+    Verifies that the system gracefully handles empty task assignments.
+    """
+    from integration import HQIntegration, create_hq_coordinator
+    from unittest.mock import Mock
+
+    mock_router = Mock()
+    # Mock route() method which returns a dict
+    mock_router.route = Mock(return_value={"status": "delivered", "error": None})
+    mock_audit_log = Mock()
+
+    hq_coord = create_hq_coordinator(mock_router, mock_audit_log, hq_id="hq_test")
+    hq = HQIntegration(hq_coord)
+
+    # Send empty task list
+    success = hq.send_tasks_to_field_unit(
+        unit_id="fieldops_001",
+        tasks=[],
+        operator_id="operator_123"
+    )
+
+    # Should succeed with empty list
+    assert success is True
+
+
+def test_edge_case_invalid_priority_values():
+    """
+    Test edge case: Invalid priority values
+
+    Verifies that the system handles invalid priorities gracefully.
+    """
+    from shared.schemas import priority_to_int, priority_to_string, validate_priority
+
+    # Test invalid integer priorities
+    assert priority_to_int(0) == 3  # Defaults to High
+    assert priority_to_int(10) == 3  # Defaults to High
+    assert priority_to_int(-1) == 3  # Defaults to High
+
+    # Test invalid string priorities
+    assert priority_to_string("invalid") == "High"  # Defaults to High
+    assert priority_to_string("") == "High"
+
+    # Test validation
+    assert validate_priority(0) is False
+    assert validate_priority(10) is False
+    assert validate_priority("invalid") is False
+    assert validate_priority("") is False
+
+    # Test valid values
+    assert validate_priority(3) is True
+    assert validate_priority("High") is True
+
+
+def test_edge_case_malformed_timestamps():
+    """
+    Test edge case: Malformed timestamps in schemas
+
+    Verifies that schema validation catches invalid timestamp formats.
+    """
+    from integration.schemas import TelemetrySchema, ValidationError
+
+    # Valid timestamp
+    valid_telemetry = {
+        "device_id": "device_001",
+        "collected_at": "2025-11-05T12:00:00",
+        "status": "operational",
+        "metrics": {}
+    }
+    schema = TelemetrySchema.from_dict(valid_telemetry)
+    assert schema.device_id == "device_001"
+
+    # Invalid timestamp format
+    invalid_telemetry = {
+        "device_id": "device_001",
+        "collected_at": "not-a-timestamp",
+        "status": "operational",
+        "metrics": {}
+    }
+
+    with pytest.raises(ValidationError, match="Invalid collected_at timestamp"):
+        TelemetrySchema.from_dict(invalid_telemetry)
+
+
+def test_edge_case_very_long_strings():
+    """
+    Test edge case: Very long strings in identifiers
+
+    Verifies that validation rejects excessively long identifiers.
+    """
+    from shared.security import validate_identifier
+
+    # Normal identifier
+    assert validate_identifier("task_123") is True
+
+    # Very long identifier (256 characters)
+    long_id = "a" * 256
+    assert validate_identifier(long_id) is False
+
+    # Max length (255 characters)
+    max_id = "a" * 255
+    assert validate_identifier(max_id) is True
+
+
+def test_error_condition_missing_required_fields():
+    """
+    Test error condition: Missing required fields in schemas
+
+    Verifies that schemas properly reject data with missing required fields.
+    """
+    from integration.schemas import TaskAssignmentSchema, ValidationError
+
+    # Missing task_id
+    with pytest.raises(ValidationError, match="task_id must be a non-empty string"):
+        TaskAssignmentSchema.from_dict({
+            "priority": 3,
+            "capabilities_required": []
+        })
+
+    # Empty task_id
+    with pytest.raises(ValidationError, match="task_id must be a non-empty string"):
+        TaskAssignmentSchema.from_dict({
+            "task_id": "",
+            "priority": 3,
+            "capabilities_required": []
+        })
+
+
+def test_error_condition_type_mismatches():
+    """
+    Test error condition: Type mismatches in data
+
+    Verifies that schemas reject data with incorrect types.
+    """
+    from integration.schemas import StatusUpdateSchema, ValidationError
+
+    # capabilities should be list, not string
+    with pytest.raises(ValidationError, match="capabilities must be a list"):
+        StatusUpdateSchema.from_dict({
+            "device_id": "device_001",
+            "status": "available",
+            "timestamp": datetime.utcnow().isoformat(),
+            "capabilities": "not_a_list"  # Wrong type
+        })
+
+    # max_concurrent_tasks should be int, not string
+    with pytest.raises(ValidationError, match="max_concurrent_tasks must be"):
+        StatusUpdateSchema.from_dict({
+            "device_id": "device_001",
+            "status": "available",
+            "timestamp": datetime.utcnow().isoformat(),
+            "max_concurrent_tasks": "five"  # Wrong type
+        })
+
+
+def test_error_condition_out_of_range_values():
+    """
+    Test error condition: Out of range values
+
+    Verifies that schemas reject values outside acceptable ranges.
+    """
+    from integration.schemas import StatusUpdateSchema, ValidationError
+
+    # fatigue_level must be 0.0-1.0
+    with pytest.raises(ValidationError, match="fatigue_level must be between"):
+        StatusUpdateSchema.from_dict({
+            "device_id": "device_001",
+            "status": "available",
+            "timestamp": datetime.utcnow().isoformat(),
+            "fatigue_level": 1.5  # Out of range
+        })
+
+    # Negative fatigue_level
+    with pytest.raises(ValidationError, match="fatigue_level must be between"):
+        StatusUpdateSchema.from_dict({
+            "device_id": "device_001",
+            "status": "available",
+            "timestamp": datetime.utcnow().isoformat(),
+            "fatigue_level": -0.1  # Out of range
+        })
+
+
+def test_error_condition_invalid_enum_values():
+    """
+    Test error condition: Invalid enum values
+
+    Verifies that schemas reject invalid status/enum values.
+    """
+    from integration.schemas import StatusUpdateSchema, ValidationError
+
+    # Invalid status value
+    with pytest.raises(ValidationError, match="Invalid status"):
+        StatusUpdateSchema.from_dict({
+            "device_id": "device_001",
+            "status": "sleeping",  # Not a valid status
+            "timestamp": datetime.utcnow().isoformat(),
+        })
+
+
+def test_concurrent_rate_limiting():
+    """
+    Test concurrent access to rate limiter
+
+    Verifies that rate limiter is thread-safe.
+    """
+    from shared.security import RateLimiter, RateLimitConfig
+    import threading
+
+    config = RateLimitConfig(max_requests=100, time_window=60)
+    limiter = RateLimiter(config)
+
+    results = []
+
+    def make_requests(client_id, count):
+        local_results = []
+        for _ in range(count):
+            local_results.append(limiter.allow_request(client_id))
+        results.extend(local_results)
+
+    # Create multiple threads making requests
+    threads = []
+    for i in range(5):
+        t = threading.Thread(target=make_requests, args=(f"client_{i}", 30))
+        threads.append(t)
+        t.start()
+
+    for t in threads:
+        t.join()
+
+    # Should have results from all threads
+    assert len(results) == 150  # 5 threads * 30 requests

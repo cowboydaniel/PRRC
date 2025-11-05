@@ -16,6 +16,16 @@ from .error_handling import (
     format_error_for_display,
     log_error_with_context,
 )
+from .security import (
+    RateLimiter,
+    RateLimitConfig,
+    PathSanitizer,
+    SecurityEvent,
+    SecurityEventTracker,
+    validate_identifier,
+    sanitize_filename,
+    hash_sensitive_data,
+)
 
 __all__ = [
     # Schemas
@@ -37,4 +47,13 @@ __all__ = [
     "safe_execute",
     "format_error_for_display",
     "log_error_with_context",
+    # Security
+    "RateLimiter",
+    "RateLimitConfig",
+    "PathSanitizer",
+    "SecurityEvent",
+    "SecurityEventTracker",
+    "validate_identifier",
+    "sanitize_filename",
+    "hash_sensitive_data",
 ]
