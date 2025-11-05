@@ -66,6 +66,19 @@ from .styles import (
 from ..hardware import enumerate_serial_interfaces, plan_touchscreen_calibration
 from ..telemetry import TelemetrySnapshot, collect_telemetry_snapshot
 
+# Integration imports
+try:
+    from integration import (
+        create_fieldops_coordinator,
+        FieldOpsIntegration,
+        create_bridge_sync_adapter,
+        setup_bridge_components,
+        start_message_polling,
+    )
+    INTEGRATION_AVAILABLE = True
+except ImportError:
+    INTEGRATION_AVAILABLE = False
+
 
 @dataclass
 class NavigationEntry:
@@ -1200,6 +1213,39 @@ def _prepare_demo_package() -> Path | None:
     return package_path
 
 
+def setup_integration(device_id: str) -> FieldOpsIntegration | None:
+    """
+    Set up FieldOps integration with Bridge and HQ Command
+
+    Args:
+        device_id: ID of this FieldOps device
+
+    Returns:
+        FieldOpsIntegration instance if available, None otherwise
+    """
+    if not INTEGRATION_AVAILABLE:
+        return None
+
+    try:
+        # Configure Bridge components
+        router, audit_log = setup_bridge_components()
+
+        # Create FieldOps coordinator
+        coordinator = create_fieldops_coordinator(router, audit_log, device_id=device_id)
+
+        # Create FieldOps integration
+        fieldops = FieldOpsIntegration(coordinator)
+
+        # Start polling for messages from HQ Command
+        start_message_polling(coordinator)
+
+        return fieldops
+
+    except Exception as e:
+        print(f"Warning: Failed to set up integration: {e}", file=sys.stderr)
+        return None
+
+
 def launch_app(*, demo_mode: bool = False) -> int:
     """Launch the FieldOps GUI application."""
 
@@ -1216,6 +1262,24 @@ def launch_app(*, demo_mode: bool = False) -> int:
         else:
             # User cancelled first run setup, exit application
             return 0
+
+    # Set up integration with configured device ID
+    device_id = config.get("device_id")
+    if device_id and INTEGRATION_AVAILABLE:
+        integration = setup_integration(device_id=device_id)
+        if integration:
+            print(f"FieldOps integration enabled (device: {device_id})")
+
+            # Send initial status update to register with HQ Command
+            capabilities = config.get("capabilities", ["basic_response", "transport", "communication"])
+            integration.send_status_update_to_hq(
+                status="available",
+                capabilities=capabilities,
+                max_concurrent_tasks=3,
+                current_task_count=0,
+                fatigue_level=0.0,
+            )
+            print(f"Sent initial status update to HQ Command")
 
     cache_path = Path.home() / ".prrc" / "fieldops_offline_queue.json"
     adapter = LocalEchoSyncAdapter()
