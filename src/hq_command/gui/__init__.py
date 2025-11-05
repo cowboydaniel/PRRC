@@ -23,6 +23,7 @@ try:
         create_hq_coordinator,
         HQIntegration,
         setup_bridge_components,
+        start_message_polling,
     )
     INTEGRATION_AVAILABLE = True
 except ImportError:
@@ -83,6 +84,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
             # Track active devices separately from responders
             active_devices = {}
+
+            # Start polling for messages from FieldOps
+            start_message_polling(coordinator)
 
             logger.info("HQ Integration initialized - live device tracking enabled")
 

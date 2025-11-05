@@ -22,58 +22,60 @@ def create_default_bridge_router():
     )
 
     # Create default partner endpoints
+    # Use "local" protocol for development/demo mode (file-based message bus)
+    # For production, switch to "rest" protocol with actual HTTP servers
     partners = {
         # HQ Command endpoints
         "hq_command": PartnerEndpoint(
             name="HQ Command",
-            protocol="rest",
-            target="http://localhost:8001/api/messages",
+            protocol="local",
+            target="hq_command",  # Recipient ID for local message bus
         ),
         "hq_test": PartnerEndpoint(
             name="HQ Command Test",
-            protocol="rest",
-            target="http://localhost:8001/api/messages",
+            protocol="local",
+            target="hq_command",
         ),
         "hq_cli": PartnerEndpoint(
             name="HQ Command CLI",
-            protocol="rest",
-            target="http://localhost:8001/api/messages",
+            protocol="local",
+            target="hq_command",
         ),
         "hq_demo": PartnerEndpoint(
             name="HQ Command Demo",
-            protocol="rest",
-            target="http://localhost:8001/api/messages",
+            protocol="local",
+            target="hq_command",
         ),
         # FieldOps endpoints
         "fieldops_001": PartnerEndpoint(
             name="FieldOps Unit 001",
-            protocol="rest",
-            target="http://localhost:9001/api/messages",
+            protocol="local",
+            target="fieldops_001",  # Recipient ID for local message bus
         ),
         "fieldops_002": PartnerEndpoint(
             name="FieldOps Unit 002",
-            protocol="rest",
-            target="http://localhost:9002/api/messages",
+            protocol="local",
+            target="fieldops_002",
         ),
         "fieldops_003": PartnerEndpoint(
             name="FieldOps Unit 003",
-            protocol="rest",
-            target="http://localhost:9003/api/messages",
+            protocol="local",
+            target="fieldops_003",
         ),
         "fieldops_test": PartnerEndpoint(
             name="FieldOps Test",
-            protocol="rest",
-            target="http://localhost:9000/api/messages",
+            protocol="local",
+            target="fieldops_test",
         ),
         "fieldops_cli": PartnerEndpoint(
             name="FieldOps CLI",
-            protocol="rest",
-            target="http://localhost:9000/api/messages",
+            protocol="local",
+            target="fieldops_cli",
         ),
         "fieldops_demo": PartnerEndpoint(
             name="FieldOps Demo",
-            protocol="rest",
-            target="http://localhost:9000/api/messages",
+            protocol="local",
+            target="fieldops_demo",
         ),
     }
 

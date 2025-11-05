@@ -23,6 +23,51 @@ from .protocol import (
 logger = logging.getLogger(__name__)
 
 
+def start_message_polling(coordinator: "IntegrationCoordinator") -> None:
+    """
+    Start polling for messages from the local message bus
+
+    This function starts a background thread that polls the message bus
+    for incoming messages and dispatches them to the coordinator.
+
+    Args:
+        coordinator: IntegrationCoordinator instance to receive messages
+    """
+    import threading
+
+    def poll_messages():
+        """Poll for messages in background thread"""
+        try:
+            from bridge.local_message_bus import get_message_bus
+
+            bus = get_message_bus()
+
+            def handle_message(payload: dict) -> None:
+                """Handle incoming message from bus"""
+                try:
+                    # Convert payload to MessageEnvelope
+                    envelope = MessageEnvelope.from_dict(payload)
+                    # Dispatch to coordinator
+                    coordinator.receive_message(envelope)
+                except Exception as e:
+                    logger.error(f"Error handling message: {e}", exc_info=True)
+
+            # Poll for messages
+            bus.poll(
+                recipient=coordinator.node_id,
+                callback=handle_message,
+                interval=0.5,  # Poll every 500ms
+            )
+
+        except Exception as e:
+            logger.error(f"Message polling error: {e}", exc_info=True)
+
+    # Start polling thread
+    thread = threading.Thread(target=poll_messages, daemon=True, name=f"MessagePoller-{coordinator.node_id}")
+    thread.start()
+    logger.info(f"Started message polling for {coordinator.node_id}")
+
+
 # ============================================================================
 # Message Handler Protocols
 # ============================================================================
