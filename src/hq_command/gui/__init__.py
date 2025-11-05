@@ -103,28 +103,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Store active_devices reference on window for access during callbacks
     if hq_integration:
         window._active_devices = active_devices
-        # Update callback to refresh the window immediately
+        # Update callback to emit signal for thread-safe GUI update
         def handle_status_update_with_refresh(payload: dict) -> None:
-            """Update active devices and refresh window"""
+            """
+            Handle status update from FieldOps (called from background thread).
+
+            This callback is invoked from the message polling thread, so we must
+            not directly modify GUI objects. Instead, we emit a signal that will
+            be handled on the main Qt thread.
+            """
             try:
-                unit_id = payload.get("unit_id")
-                if not unit_id:
-                    return
-
-                # Update active devices dictionary
-                active_devices[unit_id] = {
-                    "status": payload.get("status", "available"),
-                    "capabilities": payload.get("capabilities", []),
-                    "max_concurrent_tasks": payload.get("capacity", 1),
-                    "current_task_count": payload.get("current_task_count", 0),
-                    "fatigue_level": payload.get("fatigue_level", 0.0),
-                }
-
-                logger.info(f"Device status updated: {unit_id} - {payload.get('status', 'available')}")
-
-                # Update telemetry pane with active devices
-                if hasattr(window, 'telemetry_pane'):
-                    window.telemetry_pane.update_active_devices(active_devices)
+                # Emit signal to handle update on main thread
+                # Qt's signal/slot mechanism ensures thread-safe delivery
+                window.status_update_signal.emit(payload)
 
             except Exception as e:
                 logger.error(f"Error handling device status update: {e}", exc_info=True)
@@ -144,9 +135,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     def _refresh() -> None:
         controller.load_from_file(config_path)
         window.refresh()
-        # Also update active devices display
-        if hasattr(window, 'telemetry_pane') and hasattr(window, '_active_devices'):
-            window.telemetry_pane.update_active_devices(window._active_devices)
+        # Note: active devices are updated via the status_update_signal mechanism
+        # from the background polling thread, no need to update here
 
     _connect_timer(timer, _refresh)
     _start_timer(timer)
