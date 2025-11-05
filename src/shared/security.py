@@ -178,7 +178,7 @@ class PathSanitizer:
     Sanitize and validate file paths to prevent directory traversal attacks.
 
     Features:
-    - Remove path traversal sequences (../, ..\)
+    - Remove path traversal sequences (../, ..\\)
     - Validate against allowed directories
     - Normalize paths
     - Check for suspicious patterns
