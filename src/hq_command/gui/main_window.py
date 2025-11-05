@@ -27,6 +27,7 @@ from .qt_compat import (
     QTableWidget,
     QTableWidgetItem,
     qt_exec,
+    pyqtSignal,
 )
 
 # Phase 1 imports
@@ -95,6 +96,9 @@ class HQMainWindow(QMainWindow):
     mission canvas, and context drawer.
     """
 
+    # Signal for thread-safe status updates from background threads
+    status_update_signal = pyqtSignal(dict)
+
     def __init__(
         self,
         controller: HQCommandController,
@@ -143,6 +147,9 @@ class HQMainWindow(QMainWindow):
         self._setup_keyboard_shortcuts()
         self._setup_accessibility()
         self._setup_context_menus()  # Phase 3
+
+        # Connect status update signal for thread-safe updates
+        self.status_update_signal.connect(self.handle_status_update)
 
         # Restore window state
         self.window_manager.restore_window_state(self, default_width=1440, default_height=900)
@@ -487,6 +494,42 @@ class HQMainWindow(QMainWindow):
             # Update status bar
             self._update_status_bar()
             self._update_admin_view()
+
+    def handle_status_update(self, payload: dict) -> None:
+        """
+        Handle status update from FieldOps (called on main thread via signal).
+
+        This method is thread-safe and should be connected to the status_update_signal.
+        It updates the active devices display in the telemetry pane.
+
+        Args:
+            payload: Status update payload containing unit_id, status, capabilities, etc.
+        """
+        try:
+            unit_id = payload.get("unit_id")
+            if not unit_id:
+                return
+
+            # Update active devices dictionary
+            if not hasattr(self, '_active_devices'):
+                self._active_devices = {}
+
+            self._active_devices[unit_id] = {
+                "status": payload.get("status", "available"),
+                "capabilities": payload.get("capabilities", []),
+                "max_concurrent_tasks": payload.get("capacity", 1),
+                "current_task_count": payload.get("current_task_count", 0),
+                "fatigue_level": payload.get("fatigue_level", 0.0),
+            }
+
+            logger.info(f"Device status updated: {unit_id} - {payload.get('status', 'available')}")
+
+            # Update telemetry pane with active devices (safe on main thread)
+            if hasattr(self, 'telemetry_pane'):
+                self.telemetry_pane.update_active_devices(self._active_devices)
+
+        except Exception as e:
+            logger.error(f"Error handling device status update: {e}", exc_info=True)
 
     def _update_status_bar(self):
         """Update status bar with current system state."""
