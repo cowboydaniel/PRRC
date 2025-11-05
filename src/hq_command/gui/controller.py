@@ -329,6 +329,116 @@ class HQCommandController:
         self._state = ControllerState(tasks=self._state.tasks, responders=new_responders, telemetry=self._state.telemetry, operator=self._state.operator)
         self.refresh_models()
 
+    def add_responder(self, responder_data: Mapping[str, Any]) -> None:
+        """Add a new responder to the roster and refresh models.
+
+        Args:
+            responder_data: Dictionary containing responder information with keys:
+                - unit_id: Unique identifier for the responder
+                - capabilities: List of capability strings
+                - status: Status string (available, busy, offline)
+                - max_concurrent_tasks: Maximum number of concurrent tasks
+                - current_tasks: List of current task IDs
+                - fatigue: Fatigue level (0.0-1.0)
+                - location: Optional location string
+                - metadata: Optional metadata dictionary
+
+        Raises:
+            ValueError: If a responder with the same unit_id already exists
+        """
+        # Check if responder already exists
+        for responder in self._state.responders:
+            existing_id = responder.get("unit_id") if isinstance(responder, Mapping) else responder.unit_id
+            if existing_id == responder_data.get("unit_id"):
+                raise ValueError(f"Responder with unit_id '{responder_data.get('unit_id')}' already exists")
+
+        # Add the new responder
+        new_responders = list(self._state.responders) + [dict(responder_data)]
+        self._state = ControllerState(
+            tasks=self._state.tasks,
+            responders=new_responders,
+            telemetry=self._state.telemetry,
+            operator=self._state.operator
+        )
+        self.refresh_models()
+
+    def add_task(self, task_data: Mapping[str, Any]) -> None:
+        """Add a new task to the queue and refresh models.
+
+        Args:
+            task_data: Dictionary containing task information with keys:
+                - task_id: Unique identifier for the task
+                - priority: Priority level (1-5)
+                - capabilities_required: List of required capability strings
+                - min_units: Minimum number of units required
+                - max_units: Maximum number of units allowed
+                - location: Optional location string
+                - metadata: Optional metadata dictionary
+
+        Raises:
+            ValueError: If a task with the same task_id already exists
+        """
+        # Check if task already exists
+        for task in self._state.tasks:
+            existing_id = task.get("task_id") if isinstance(task, Mapping) else task.task_id
+            if existing_id == task_data.get("task_id"):
+                raise ValueError(f"Task with task_id '{task_data.get('task_id')}' already exists")
+
+        # Add the new task
+        new_tasks = list(self._state.tasks) + [dict(task_data)]
+        self._state = ControllerState(
+            tasks=new_tasks,
+            responders=self._state.responders,
+            telemetry=self._state.telemetry,
+            operator=self._state.operator
+        )
+        self.refresh_models()
+
+    def get_responders(self) -> List[Mapping[str, Any]]:
+        """Get all responders in the roster.
+
+        Returns:
+            List of responder data dictionaries
+        """
+        responders = []
+        for responder in self._state.responders:
+            if isinstance(responder, ResponderStatus):
+                responders.append({
+                    "unit_id": responder.unit_id,
+                    "capabilities": list(responder.capabilities),
+                    "status": responder.status,
+                    "max_concurrent_tasks": responder.max_concurrent_tasks,
+                    "current_tasks": list(responder.current_tasks),
+                    "fatigue": responder.fatigue,
+                    "location": responder.location,
+                    "metadata": dict(responder.metadata),
+                })
+            else:
+                responders.append(dict(responder))
+        return responders
+
+    def get_tasks(self) -> List[Mapping[str, Any]]:
+        """Get all tasks in the queue.
+
+        Returns:
+            List of task data dictionaries
+        """
+        tasks = []
+        for task in self._state.tasks:
+            if isinstance(task, TaskingOrder):
+                tasks.append({
+                    "task_id": task.task_id,
+                    "priority": task.priority,
+                    "capabilities_required": list(task.capabilities_required),
+                    "min_units": task.min_units,
+                    "max_units": task.max_units,
+                    "location": task.location,
+                    "metadata": dict(task.metadata),
+                })
+            else:
+                tasks.append(dict(task))
+        return tasks
+
     # ----------------------------------------------------------------- helpers
     @staticmethod
     def _group_assignments(assignments: Sequence[Mapping[str, Any]], *, key: str) -> dict[str, list[Mapping[str, Any]]]:

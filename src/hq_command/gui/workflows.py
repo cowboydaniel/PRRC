@@ -35,6 +35,7 @@ from .qt_compat import (
     QScrollArea,
     QListWidget,
     QListWidgetItem,
+    QTabWidget,
     Qt,
     pyqtSignal,
 )
@@ -410,46 +411,79 @@ class TaskCreationDialog(Modal):
     """
     Task creation modal (3-05).
 
-    Allows operators to create new tasks with validation.
+    Allows operators to select a task from calls or create new tasks with validation.
     """
 
     task_created = pyqtSignal(dict)  # task_data
 
-    def __init__(self, parent: Optional[QWidget] = None):
-        super().__init__("Create New Task", parent)
+    def __init__(self, existing_tasks: Optional[List[Dict[str, Any]]] = None, parent: Optional[QWidget] = None):
+        super().__init__("Create Task", parent)
 
+        self.existing_tasks = existing_tasks or []
         self.setMinimumWidth(600)
         self._build_ui()
 
     def _build_ui(self):
-        """Build task creation form."""
+        """Build task creation form with tabs."""
+        # Tab widget for selection vs creation
+        self.tabs = QTabWidget()
+
+        # Tab 1: Select from calls
+        select_widget = QWidget()
+        select_layout = QVBoxLayout(select_widget)
+        select_layout.addWidget(Caption("Select a task created from a call:"))
+
+        self.task_list = QListWidget()
+        for task in self.existing_tasks:
+            task_id = task.get("task_id", "Unknown")
+            priority = task.get("priority", 0)
+            capabilities = task.get("capabilities_required", [])
+            if isinstance(capabilities, (list, tuple)):
+                capabilities = ", ".join(capabilities)
+            item_text = f"{task_id} (P{priority}) - [{capabilities}]"
+            item = QListWidgetItem(item_text)
+            item.setData(Qt.UserRole, task)
+            self.task_list.addItem(item)
+
+        if not self.existing_tasks:
+            self.task_list.addItem("No tasks from calls available")
+            self.task_list.setEnabled(False)
+
+        select_layout.addWidget(self.task_list)
+
+        # Tab 2: Create from scratch
+        create_widget = QWidget()
+        create_layout = QVBoxLayout(create_widget)
+        create_layout.addWidget(Caption("Create a new task from scratch:"))
+
         # Task ID
         id_layout = QHBoxLayout()
         id_layout.addWidget(QLabel("Task ID:"))
         self.task_id_input = Input(placeholder="Enter unique task ID")
         id_layout.addWidget(self.task_id_input)
-        self.content_layout.addLayout(id_layout)
+        create_layout.addLayout(id_layout)
 
         # Priority
         priority_layout = QHBoxLayout()
         priority_layout.addWidget(QLabel("Priority:"))
-        self.priority_select = Select(items=["1 (Highest)", "2 (High)", "3 (Medium)", "4 (Low)"])
+        self.priority_select = Select(items=["1 (Highest)", "2 (High)", "3 (Medium)", "4 (Low)", "5 (Lowest)"])
+        self.priority_select.setCurrentIndex(2)  # Default to medium (3)
         priority_layout.addWidget(self.priority_select)
-        self.content_layout.addLayout(priority_layout)
+        create_layout.addLayout(priority_layout)
 
         # Capabilities
         caps_layout = QVBoxLayout()
         caps_layout.addWidget(QLabel("Required Capabilities (comma-separated):"))
         self.capabilities_input = Input(placeholder="e.g., medical, transport, technical")
         caps_layout.addWidget(self.capabilities_input)
-        self.content_layout.addLayout(caps_layout)
+        create_layout.addLayout(caps_layout)
 
         # Location
         loc_layout = QHBoxLayout()
         loc_layout.addWidget(QLabel("Location:"))
-        self.location_input = Input(placeholder="Task location")
+        self.location_input = Input(placeholder="Task location (optional)")
         loc_layout.addWidget(self.location_input)
-        self.content_layout.addLayout(loc_layout)
+        create_layout.addLayout(loc_layout)
 
         # Unit requirements
         units_layout = QHBoxLayout()
@@ -457,6 +491,7 @@ class TaskCreationDialog(Modal):
         self.min_units_spin = QSpinBox()
         self.min_units_spin.setMinimum(1)
         self.min_units_spin.setMaximum(10)
+        self.min_units_spin.setValue(1)
         units_layout.addWidget(self.min_units_spin)
 
         units_layout.addWidget(QLabel("Max Units:"))
@@ -465,7 +500,7 @@ class TaskCreationDialog(Modal):
         self.max_units_spin.setMaximum(10)
         self.max_units_spin.setValue(1)
         units_layout.addWidget(self.max_units_spin)
-        self.content_layout.addLayout(units_layout)
+        create_layout.addLayout(units_layout)
 
         # Metadata
         metadata_layout = QVBoxLayout()
@@ -474,19 +509,45 @@ class TaskCreationDialog(Modal):
         self.metadata_input.setPlaceholderText("Any additional task information...")
         self.metadata_input.setMaximumHeight(100)
         metadata_layout.addWidget(self.metadata_input)
-        self.content_layout.addLayout(metadata_layout)
+        create_layout.addLayout(metadata_layout)
 
         # Validation message
         self.validation_label = QLabel("")
         self.validation_label.setWordWrap(True)
-        self.content_layout.addWidget(self.validation_label)
+        create_layout.addWidget(self.validation_label)
+
+        create_layout.addStretch()
+
+        # Add tabs
+        self.tabs.addTab(select_widget, "From Call")
+        self.tabs.addTab(create_widget, "From Scratch")
+
+        self.content_layout.addWidget(self.tabs)
 
         # Connect validation
         self.task_id_input.textChanged.connect(self._validate_form)
         self.button_box.accepted.disconnect()
-        self.button_box.accepted.connect(self._create_task)
+        self.button_box.accepted.connect(self._on_accept)
 
         self._validate_form()
+
+    def _on_accept(self):
+        """Handle accept based on active tab."""
+        if self.tabs.currentIndex() == 0:
+            # Selecting task from calls
+            selected_items = self.task_list.selectedItems()
+            if not selected_items:
+                from .qt_compat import QMessageBox
+                QMessageBox.warning(self, "Selection Required", "Please select a task.")
+                return
+
+            task_data = selected_items[0].data(Qt.UserRole)
+            if task_data:
+                self.task_created.emit(task_data)
+                self.accept()
+        else:
+            # Creating new task
+            self._create_task()
 
     def _validate_form(self):
         """Validate form inputs (3-05)."""
@@ -856,48 +917,80 @@ class ResponderProfileDialog(Modal):
 
 class ResponderCreationDialog(Modal):
     """
-    Create new responder dialog.
+    Create new responder dialog or select existing responder.
 
-    Allows creating a new responder with ID, capabilities, location, and settings.
+    Allows selecting an existing responder or creating a new responder
+    with ID, capabilities, location, and settings.
     """
 
     responder_created = pyqtSignal(dict)  # new_responder_data
 
-    def __init__(self, parent: Optional[QWidget] = None):
-        super().__init__("Create New Responder", parent)
+    def __init__(self, existing_responders: Optional[List[Dict[str, Any]]] = None, parent: Optional[QWidget] = None):
+        super().__init__("Create Roster Entry", parent)
 
+        self.existing_responders = existing_responders or []
         self.setMinimumWidth(500)
         self._build_ui()
 
     def _build_ui(self):
-        """Build creation form."""
+        """Build creation form with tabs for selecting or creating."""
+        # Tab widget for selection vs creation
+        self.tabs = QTabWidget()
+
+        # Tab 1: Select existing responder
+        select_widget = QWidget()
+        select_layout = QVBoxLayout(select_widget)
+        select_layout.addWidget(Caption("Select an existing responder to add to the roster:"))
+
+        self.responder_list = QListWidget()
+        for responder in self.existing_responders:
+            unit_id = responder.get("unit_id", "Unknown")
+            capabilities = responder.get("capabilities", [])
+            if isinstance(capabilities, (list, tuple)):
+                capabilities = ", ".join(capabilities)
+            item_text = f"{unit_id} - [{capabilities}]"
+            item = QListWidgetItem(item_text)
+            item.setData(Qt.UserRole, responder)
+            self.responder_list.addItem(item)
+
+        if not self.existing_responders:
+            self.responder_list.addItem("No existing responders available")
+            self.responder_list.setEnabled(False)
+
+        select_layout.addWidget(self.responder_list)
+
+        # Tab 2: Create new responder
+        create_widget = QWidget()
+        create_layout = QVBoxLayout(create_widget)
+        create_layout.addWidget(Caption("Create a new responder:"))
+
         # Unit ID input
-        self.content_layout.addWidget(Heading("Unit Information", level=4))
+        create_layout.addWidget(Heading("Unit Information", level=4))
         id_layout = QHBoxLayout()
         id_layout.addWidget(QLabel("Unit ID:"))
         self.unit_id_input = Input(placeholder="e.g., UNIT-101")
         id_layout.addWidget(self.unit_id_input)
-        self.content_layout.addLayout(id_layout)
+        create_layout.addLayout(id_layout)
 
         help_label = QLabel("Enter a unique identifier for this responder")
         help_label.setStyleSheet("font-size: 11px; color: #666; margin-bottom: 16px;")
-        self.content_layout.addWidget(help_label)
+        create_layout.addWidget(help_label)
 
         # Capabilities editor
-        self.content_layout.addWidget(Heading("Capabilities", level=4))
+        create_layout.addWidget(Heading("Capabilities", level=4))
         caps_label = QLabel("Comma-separated capability tags:")
-        self.content_layout.addWidget(caps_label)
+        create_layout.addWidget(caps_label)
 
         self.capabilities_input = Input(placeholder="e.g., medical, transport, technical")
-        self.content_layout.addWidget(self.capabilities_input)
+        create_layout.addWidget(self.capabilities_input)
 
         # Location editor
-        self.content_layout.addWidget(Heading("Location", level=4))
+        create_layout.addWidget(Heading("Location", level=4))
         self.location_input = Input(placeholder="Current location (optional)")
-        self.content_layout.addWidget(self.location_input)
+        create_layout.addWidget(self.location_input)
 
         # Max concurrent tasks
-        self.content_layout.addWidget(Heading("Capacity", level=4))
+        create_layout.addWidget(Heading("Capacity", level=4))
         capacity_layout = QHBoxLayout()
         capacity_layout.addWidget(QLabel("Max Concurrent Tasks:"))
         self.capacity_spin = QSpinBox()
@@ -906,20 +999,46 @@ class ResponderCreationDialog(Modal):
         self.capacity_spin.setValue(3)  # Default to 3
         capacity_layout.addWidget(self.capacity_spin)
         capacity_layout.addStretch()
-        self.content_layout.addLayout(capacity_layout)
+        create_layout.addLayout(capacity_layout)
 
         # Initial status
-        self.content_layout.addWidget(Heading("Initial Status", level=4))
+        create_layout.addWidget(Heading("Initial Status", level=4))
         status_layout = QHBoxLayout()
         status_layout.addWidget(QLabel("Status:"))
         self.status_select = Select()
         self.status_select.addItems(["available", "busy", "offline"])
         status_layout.addWidget(self.status_select)
         status_layout.addStretch()
-        self.content_layout.addLayout(status_layout)
+        create_layout.addLayout(status_layout)
+
+        create_layout.addStretch()
+
+        # Add tabs
+        self.tabs.addTab(select_widget, "Select Existing")
+        self.tabs.addTab(create_widget, "Create New")
+
+        self.content_layout.addWidget(self.tabs)
 
         self.button_box.accepted.disconnect()
-        self.button_box.accepted.connect(self._create_responder)
+        self.button_box.accepted.connect(self._on_accept)
+
+    def _on_accept(self):
+        """Handle accept based on active tab."""
+        if self.tabs.currentIndex() == 0:
+            # Selecting existing responder
+            selected_items = self.responder_list.selectedItems()
+            if not selected_items:
+                from .qt_compat import QMessageBox
+                QMessageBox.warning(self, "Selection Required", "Please select a responder.")
+                return
+
+            responder_data = selected_items[0].data(Qt.UserRole)
+            if responder_data:
+                self.responder_created.emit(responder_data)
+                self.accept()
+        else:
+            # Creating new responder
+            self._create_responder()
 
     def _create_responder(self):
         """Validate and create new responder."""
@@ -934,6 +1053,11 @@ class ResponderCreationDialog(Modal):
         capabilities_text = self.capabilities_input.text().strip()
         capabilities = [cap.strip() for cap in capabilities_text.split(',') if cap.strip()]
 
+        if not capabilities:
+            from .qt_compat import QMessageBox
+            QMessageBox.warning(self, "Validation Error", "At least one capability is required.")
+            return
+
         location = self.location_input.text().strip() or None
 
         new_responder = {
@@ -942,8 +1066,9 @@ class ResponderCreationDialog(Modal):
             'location': location,
             'max_concurrent_tasks': self.capacity_spin.value(),
             'status': self.status_select.currentText(),
-            'fatigue': 0,  # Start fresh
-            'current_task_count': 0,
+            'fatigue': 0.0,  # Start fresh
+            'current_tasks': [],
+            'metadata': {},
             'created_at': datetime.now(timezone.utc).isoformat(),
         }
 

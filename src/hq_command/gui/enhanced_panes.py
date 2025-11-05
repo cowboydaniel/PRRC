@@ -103,6 +103,7 @@ class RosterPane(QWidget):
     """
 
     filter_presets_requested = pyqtSignal()
+    create_requested = pyqtSignal()
 
     def __init__(self, model: RosterListModel, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -143,6 +144,10 @@ class RosterPane(QWidget):
         presets_button = Button("Presets", ButtonVariant.OUTLINE)
         presets_button.clicked.connect(self.filter_presets_requested.emit)
         header_layout.addWidget(presets_button)
+
+        create_button = Button("Create", ButtonVariant.PRIMARY)
+        create_button.clicked.connect(self.create_requested.emit)
+        header_layout.addWidget(create_button)
 
         header_layout.addStretch()
 
@@ -351,6 +356,7 @@ class TaskQueuePane(QWidget):
     defer_requested = pyqtSignal(str)  # task_id
     bulk_assign_requested = pyqtSignal(list)  # [task_id]
     filter_presets_requested = pyqtSignal()
+    create_requested = pyqtSignal()
 
     def __init__(self, model: TaskQueueModel, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -398,6 +404,10 @@ class TaskQueuePane(QWidget):
         presets_button = Button("Presets", ButtonVariant.OUTLINE)
         presets_button.clicked.connect(self.filter_presets_requested.emit)
         header_layout.addWidget(presets_button)
+
+        create_button = Button("Create", ButtonVariant.PRIMARY)
+        create_button.clicked.connect(self.create_requested.emit)
+        header_layout.addWidget(create_button)
 
         layout.addLayout(header_layout)
 

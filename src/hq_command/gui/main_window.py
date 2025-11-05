@@ -270,9 +270,11 @@ class HQMainWindow(QMainWindow):
         self.roster_pane.filter_presets_requested.connect(
             lambda: self._show_filter_presets_panel("roster")
         )
+        self.roster_pane.create_requested.connect(self._show_roster_creation_dialog)
         self.task_pane.filter_presets_requested.connect(
             lambda: self._show_filter_presets_panel("tasks")
         )
+        self.task_pane.create_requested.connect(self._show_task_creation_dialog)
         self.task_pane.bulk_assign_requested.connect(self._show_bulk_assignment_dialog)
 
         left_layout.addWidget(self.roster_pane)
@@ -1099,7 +1101,10 @@ class HQMainWindow(QMainWindow):
 
     def _show_task_creation_dialog(self):
         """Show task creation dialog (3-05)."""
-        dialog = TaskCreationDialog(self)
+        # Get existing tasks from controller
+        # TODO: In the future, filter to only show tasks from calls
+        existing_tasks = self.controller.get_tasks()
+        dialog = TaskCreationDialog(existing_tasks, self)
         dialog.task_created.connect(self._on_task_created)
         qt_exec(dialog)
 
@@ -1107,17 +1112,24 @@ class HQMainWindow(QMainWindow):
         """Handle task creation (3-05)."""
         logger.info(f"Task created: {task_data}")
 
-        # Add notification
-        self.notification_manager.add_system_notification(
-            "Task Created",
-            f"Task {task_data.get('task_id')} has been created",
-        )
+        # Add task to controller
+        try:
+            self.controller.add_task(task_data)
 
-        self.notification_badge.set_unread_count(
-            self.notification_panel.get_unread_count()
-        )
+            # Add notification
+            self.notification_manager.add_system_notification(
+                "Task Created",
+                f"Task {task_data.get('task_id')} has been created",
+            )
 
-        self.refresh()
+            self.notification_badge.set_unread_count(
+                self.notification_panel.get_unread_count()
+            )
+
+            self.refresh()
+        except ValueError as e:
+            from .qt_compat import QMessageBox
+            QMessageBox.warning(self, "Error", str(e))
 
     def _show_task_edit_dialog(self, task_data: Dict[str, Any]):
         """Show task edit dialog (3-06)."""
@@ -1244,7 +1256,9 @@ class HQMainWindow(QMainWindow):
 
     def _show_responder_creation_dialog(self):
         """Show responder creation dialog."""
-        dialog = ResponderCreationDialog(self)
+        # Get existing responders from controller
+        existing_responders = self.controller.get_responders()
+        dialog = ResponderCreationDialog(existing_responders, self)
         dialog.responder_created.connect(self._on_responder_created)
         qt_exec(dialog)
 
@@ -1252,20 +1266,24 @@ class HQMainWindow(QMainWindow):
         """Handle new responder creation."""
         logger.info(f"New responder created: {responder_data}")
 
-        # TODO: Add responder to controller/data model
-        # For now, just notify
-        unit_id = responder_data.get('unit_id', 'Unknown')
+        # Add responder to controller
+        try:
+            self.controller.add_responder(responder_data)
+            unit_id = responder_data.get('unit_id', 'Unknown')
 
-        self.notification_manager.add_system_notification(
-            "New Responder Created",
-            f"{unit_id} has been added to the roster",
-        )
+            self.notification_manager.add_system_notification(
+                "New Responder Created",
+                f"{unit_id} has been added to the roster",
+            )
 
-        self.notification_badge.set_unread_count(
-            self.notification_panel.get_unread_count()
-        )
+            self.notification_badge.set_unread_count(
+                self.notification_panel.get_unread_count()
+            )
 
-        self.refresh()
+            self.refresh()
+        except ValueError as e:
+            from .qt_compat import QMessageBox
+            QMessageBox.warning(self, "Error", str(e))
 
     def _show_call_intake_dialog(self):
         """Show call intake dialog (3-11 to 3-12)."""
