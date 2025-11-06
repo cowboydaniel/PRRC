@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 try:
-    from PySide6 import QtCore, QtGui, QtWidgets
+    from PySide6 import QtCore, QtGui, QtWidgets, QtSvg
 except ImportError as exc:  # pragma: no cover - import-time guard
     raise ImportError("PySide6 is required to run the HQ Command GUI.") from exc
 
@@ -43,6 +43,9 @@ QPixmap = QtGui.QPixmap
 QPolygonF = QtGui.QPolygonF
 QScreen = QtGui.QScreen
 QShortcut = QtGui.QShortcut
+
+# QtSvg exports
+QSvgRenderer = QtSvg.QSvgRenderer
 
 # QtWidgets exports
 QAbstractItemView = QtWidgets.QAbstractItemView

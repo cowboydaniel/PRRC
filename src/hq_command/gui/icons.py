@@ -168,8 +168,11 @@ class IconManager:
         # Try SVG first
         svg_path = self.icon_dir / f"{name}.svg"
         if svg_path.exists():
-            # TODO: Implement SVG colorization if needed
-            icon = QIcon(str(svg_path))
+            # Implement SVG colorization if color is specified
+            if color:
+                icon = self._colorize_svg(svg_path, color, size)
+            else:
+                icon = QIcon(str(svg_path))
             return icon
 
         # Try PNG
@@ -186,6 +189,57 @@ class IconManager:
             return icon
 
         return None
+
+    def _colorize_svg(self, svg_path: Path, color: str, size: int) -> QIcon:
+        """
+        Colorize an SVG icon by replacing fill/stroke colors.
+
+        Args:
+            svg_path: Path to SVG file
+            color: Target color (hex string like "#FF0000")
+            size: Icon size
+
+        Returns:
+            Colorized QIcon
+        """
+        from .qt_compat import QPixmap, QSvgRenderer, QPainter
+        import re
+
+        try:
+            # Read SVG content
+            svg_content = svg_path.read_text(encoding='utf-8')
+
+            # Replace fill colors (common patterns)
+            # Replace fill="#..." or fill='...'
+            svg_content = re.sub(
+                r'fill\s*=\s*["\'](?:#[0-9a-fA-F]{3,6}|[a-zA-Z]+)["\']',
+                f'fill="{color}"',
+                svg_content
+            )
+
+            # Replace stroke colors (common patterns)
+            svg_content = re.sub(
+                r'stroke\s*=\s*["\'](?:#[0-9a-fA-F]{3,6}|[a-zA-Z]+)["\']',
+                f'stroke="{color}"',
+                svg_content
+            )
+
+            # Create renderer from modified SVG
+            renderer = QSvgRenderer(svg_content.encode('utf-8'))
+
+            # Render to pixmap
+            pixmap = QPixmap(size, size)
+            pixmap.fill(0)  # Transparent background
+
+            painter = QPainter(pixmap)
+            renderer.render(painter)
+            painter.end()
+
+            return QIcon(pixmap)
+
+        except Exception:
+            # Fall back to non-colorized version on error
+            return QIcon(str(svg_path))
 
     def _create_emoji_icon(self, name: str, size: int) -> QIcon:
         """

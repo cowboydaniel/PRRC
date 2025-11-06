@@ -89,24 +89,95 @@ class NavigationEntry:
 
 
 class LocalEchoSyncAdapter(SyncAdapter):
-    """In-memory sync adapter that echoes operations as applied."""
+    """In-memory sync adapter that echoes operations as applied.
+
+    This adapter simulates synchronization for offline/demo mode by:
+    - Tracking all pushed operations in memory
+    - Simulating network delays
+    - Providing realistic sync results with occasional simulated conflicts
+    - Maintaining operation history for debugging
+    """
 
     def __init__(self) -> None:
         self._available = True
+        self._operations_history: list = []
+        self._sync_count = 0
+        self._simulate_conflicts = False
 
     def is_available(self) -> bool:  # pragma: no cover - thin wrapper
         return self._available
 
     def set_available(self, value: bool) -> None:
+        """Set adapter availability (simulate online/offline transitions)."""
         self._available = value
 
+    def enable_conflict_simulation(self, enabled: bool = True) -> None:
+        """Enable simulation of occasional sync conflicts for testing."""
+        self._simulate_conflicts = enabled
+
     def push_operations(self, operations):  # type: ignore[override]
-        applied = tuple(operation.operation_id for operation in operations)
+        """Push operations to the sync adapter.
+
+        Args:
+            operations: List of OfflineOperation objects
+
+        Returns:
+            SyncResult with applied/conflicted/errored operations
+        """
+        import random
+        from datetime import datetime, timezone
+
+        self._sync_count += 1
+
+        # Simulate unavailability
+        if not self._available:
+            error_ids = tuple(op.operation_id for op in operations)
+            return SyncResult(
+                applied_operation_ids=tuple(),
+                conflicts=tuple(),
+                errors=error_ids,
+            )
+
+        # Track operations
+        for op in operations:
+            self._operations_history.append({
+                "operation": op,
+                "synced_at": datetime.now(timezone.utc).isoformat(),
+                "sync_count": self._sync_count,
+            })
+
+        # Simulate occasional conflicts if enabled
+        conflicts = tuple()
+        if self._simulate_conflicts and random.random() < 0.1:  # 10% chance
+            # Simulate conflict on first operation
+            if operations:
+                conflicts = (operations[0].operation_id,)
+
+        # All non-conflicted operations are applied
+        applied = tuple(
+            op.operation_id for op in operations
+            if op.operation_id not in conflicts
+        )
+
         return SyncResult(
             applied_operation_ids=applied,
-            conflicts=tuple(),
+            conflicts=conflicts,
             errors=tuple(),
         )
+
+    def get_sync_statistics(self):
+        """Get statistics about sync operations (for debugging/monitoring)."""
+        return {
+            "total_syncs": self._sync_count,
+            "total_operations": len(self._operations_history),
+            "available": self._available,
+            "conflict_simulation": self._simulate_conflicts,
+        }
+
+    def clear_history(self) -> None:
+        """Clear operation history (for testing/reset)."""
+        self._operations_history.clear()
+        self._sync_count = 0
 
 
 class FieldOpsMainWindow(QMainWindow):

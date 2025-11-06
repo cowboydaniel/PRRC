@@ -745,20 +745,163 @@ class HQMainWindow(QMainWindow):
         self.context_drawer.clear_content()
         self.context_drawer.set_title(f"Task: {task_id}")
 
-        # TODO: Phase 3 - Add detailed task view
-        task_info = Card()
-        task_info.add_widget(Heading(f"Task {task_id}", level=4))
-        task_info.add_widget(QLabel(f"Status: {status}"))
-        task_info.add_widget(QLabel("Detailed task view coming in Phase 3"))
+        # Get task details from controller
+        tasks = self.controller.get_tasks()
+        task_data = next((t for t in tasks if t.get('task_id') == task_id), None)
 
-        self.context_drawer.add_content(task_info)
+        if not task_data:
+            error_card = Card()
+            error_card.add_widget(ErrorMessage(f"Task {task_id} not found"))
+            self.context_drawer.add_content(error_card)
+            self.context_drawer.open_drawer()
+            return
+
+        # Task overview card
+        overview_card = Card()
+        overview_card.add_widget(Heading(f"Task {task_id}", level=4))
+        overview_card.add_widget(QLabel(f"Status: {status}"))
+        overview_card.add_widget(QLabel(f"Priority: {task_data.get('priority', 'N/A')}"))
+
+        # Capabilities and requirements
+        capabilities = task_data.get('capabilities_required', [])
+        if capabilities:
+            overview_card.add_widget(QLabel(f"Required Capabilities: {', '.join(capabilities)}"))
+
+        # Location information
+        location = task_data.get('location')
+        if location:
+            overview_card.add_widget(QLabel(f"Location: {location}"))
+
+        # Unit requirements
+        min_units = task_data.get('min_units', 0)
+        max_units = task_data.get('max_units', 0)
+        if min_units or max_units:
+            overview_card.add_widget(QLabel(f"Units Required: {min_units} - {max_units}"))
+
+        self.context_drawer.add_content(overview_card)
+
+        # Metadata card (if available)
+        metadata = task_data.get('metadata', {})
+        if metadata:
+            metadata_card = Card()
+            metadata_card.add_widget(Heading("Additional Information", level=5))
+            for key, value in metadata.items():
+                metadata_card.add_widget(QLabel(f"{key}: {value}"))
+            self.context_drawer.add_content(metadata_card)
+
+        # Action buttons
+        actions_card = Card()
+        actions_card.add_widget(Heading("Actions", level=5))
+
+        edit_btn = Button("Edit Task", variant=ButtonVariant.SECONDARY)
+        edit_btn.clicked.connect(lambda: self._show_task_edit_dialog(task_id))
+        actions_card.add_widget(edit_btn)
+
+        assign_btn = Button("Assign Units", variant=ButtonVariant.PRIMARY)
+        assign_btn.clicked.connect(lambda: self._show_assignment_dialog(task_id))
+        actions_card.add_widget(assign_btn)
+
+        self.context_drawer.add_content(actions_card)
         self.context_drawer.open_drawer()
 
     def _on_timeline_export_requested(self):
         """Handle timeline export request."""
-        # TODO: Phase 3 - Implement export dialog
-        # For now, just show message
-        self.show_loading("Exporting timeline... (Feature coming in Phase 3)")
+        from .qt_compat import QDialog, QFileDialog
+        import json
+        import csv
+        from pathlib import Path
+
+        # Create export dialog
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Export Timeline")
+        dialog.setMinimumWidth(400)
+
+        layout = QVBoxLayout(dialog)
+
+        # Title
+        layout.addWidget(Heading("Export Timeline Events", level=3))
+
+        # Format selection
+        format_label = QLabel("Export Format:")
+        layout.addWidget(format_label)
+
+        format_select = Select(["JSON", "CSV", "Text"])
+        layout.addWidget(format_select)
+
+        # Action buttons
+        button_layout = QHBoxLayout()
+        cancel_btn = Button("Cancel", variant=ButtonVariant.SECONDARY)
+        cancel_btn.clicked.connect(dialog.reject)
+        button_layout.addWidget(cancel_btn)
+
+        export_btn = Button("Export", variant=ButtonVariant.PRIMARY)
+        button_layout.addWidget(export_btn)
+        layout.addLayout(button_layout)
+
+        def do_export():
+            """Perform the export operation."""
+            format_type = format_select.currentText().lower()
+
+            # File extension mapping
+            extensions = {
+                "json": "JSON Files (*.json)",
+                "csv": "CSV Files (*.csv)",
+                "text": "Text Files (*.txt)",
+            }
+
+            # Show file save dialog
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Export Timeline",
+                f"timeline_export.{format_type}",
+                extensions.get(format_type, "All Files (*.*)")
+            )
+
+            if not file_path:
+                dialog.reject()
+                return
+
+            try:
+                # Get events from timeline view
+                events = self.timeline_view._events
+
+                if format_type == "json":
+                    # Export as JSON
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        json.dump(events, f, indent=2, default=str)
+
+                elif format_type == "csv":
+                    # Export as CSV
+                    with open(file_path, 'w', newline='', encoding='utf-8') as f:
+                        if events:
+                            writer = csv.DictWriter(f, fieldnames=events[0].keys())
+                            writer.writeheader()
+                            writer.writerows(events)
+
+                elif format_type == "text":
+                    # Export as formatted text
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write("HQ Command Timeline Export\n")
+                        f.write("=" * 50 + "\n\n")
+                        for event in events:
+                            f.write(f"Event Type: {event.get('event_type', 'N/A')}\n")
+                            f.write(f"Timestamp: {event.get('timestamp', 'N/A')}\n")
+                            f.write(f"Details: {event.get('details', 'N/A')}\n")
+                            if event.get('metadata'):
+                                f.write(f"Metadata: {event.get('metadata')}\n")
+                            f.write("-" * 50 + "\n\n")
+
+                self.show_loading(f"Timeline exported successfully to {Path(file_path).name}")
+                dialog.accept()
+
+            except Exception as e:
+                error_card = Card()
+                error_card.add_widget(ErrorMessage(f"Export failed: {str(e)}"))
+                layout.insertWidget(2, error_card)
+
+        export_btn.clicked.connect(do_export)
+
+        qt_exec(dialog)
 
     def closeEvent(self, event):
         """Handle window close to save state."""
@@ -1102,9 +1245,16 @@ class HQMainWindow(QMainWindow):
     def _show_task_creation_dialog(self):
         """Show task creation dialog (3-05)."""
         # Get existing tasks from controller
-        # TODO: In the future, filter to only show tasks from calls
         existing_tasks = self.controller.get_tasks()
-        dialog = TaskCreationDialog(existing_tasks, self)
+
+        # Filter to only show tasks from calls (tasks with call_id in metadata)
+        call_tasks = [
+            task for task in existing_tasks
+            if task.get('metadata', {}).get('call_id') is not None
+        ]
+
+        # Pass filtered call tasks for reference/correlation
+        dialog = TaskCreationDialog(call_tasks, self)
         dialog.task_created.connect(self._on_task_created)
         qt_exec(dialog)
 
