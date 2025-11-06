@@ -291,44 +291,6 @@ controller = FieldOpsGUIController(
 controller.push_operations([operation1, operation2])
 ```
 
-## CLI Usage
-
-The PRRC CLI includes new commands to demonstrate the integrated workflows:
-
-### Integration Demo
-
-Run an end-to-end demonstration:
-
-```bash
-python src/prrc_cli.py integration-demo
-```
-
-This demonstrates:
-1. HQ Command sending task assignments to FieldOps
-2. FieldOps sending telemetry reports to HQ
-3. FieldOps syncing offline operations to HQ
-4. Message routing through the Bridge
-5. Compliance audit logging
-
-### Send Tasks to Field Units
-
-Send task assignments from HQ to FieldOps units:
-
-```bash
-python src/prrc_cli.py send-tasks samples/hq_command/production_inputs.json
-```
-
-Options:
-- `--unit-id UNIT_ID` - Send only to specific unit
-
-### Send Telemetry to HQ
-
-Send telemetry report from FieldOps to HQ:
-
-```bash
-python src/prrc_cli.py send-telemetry --device-id fieldops_001
-```
-
 ## Message Flow Examples
 
 ### Task Assignment Flow
@@ -548,5 +510,4 @@ Planned improvements to the integration layer:
 For issues or questions about the integration layer:
 1. Check this documentation
 2. Review test cases in `tests/test_integration.py`
-3. Run the integration demo: `python src/prrc_cli.py integration-demo`
-4. Check logs for error messages
+3. Check logs for error messages

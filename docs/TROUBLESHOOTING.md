@@ -94,7 +94,7 @@ python -c "import sys; print(sys.path)"
 2. **Run from correct directory**:
    ```bash
    cd /path/to/PRRC
-   python -m src.prrc_cli
+   hq-gui
    ```
 
 3. **Install in development mode**:
@@ -291,8 +291,8 @@ except ValidationError as e:
 
 **Diagnosis**:
 ```bash
-# Run with verbose logging
-python -m src.prrc_cli --debug hq
+# Run the GUI to see error messages
+hq-gui
 ```
 
 **Solutions**:
@@ -312,7 +312,7 @@ python -m src.prrc_cli --debug hq
    ```bash
    Xvfb :99 -screen 0 1024x768x24 &
    export DISPLAY=:99
-   python -m src.prrc_cli hq
+   hq-gui
    ```
 
 ### Task action fails silently

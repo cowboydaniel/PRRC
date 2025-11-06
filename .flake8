@@ -77,7 +77,7 @@ inline-quotes = double
 # Import Order (requires flake8-import-order plugin)
 # ============================================================================
 # import-order-style = google
-# application-import-names = hq_command,fieldops,bridge,prrc_cli
+# application-import-names = hq_command,fieldops,bridge
 
 # ============================================================================
 # Notes
