@@ -28,10 +28,9 @@ tests/
 │   ├── test_gui_controller.py            # GUI state management tests (468 LOC)
 │   ├── test_mission_loader.py            # Mission package tests (322 LOC)
 │   └── test_telemetry.py                 # Telemetry collection tests (208 LOC)
-└── test_prrc_cli.py                      # CLI dispatch tests (41 LOC)
 ```
 
-**Total Test LOC:** ~1,992
+**Total Test LOC:** ~1,951
 **Test Coverage Ratio:** ~35% (test-to-source)
 **Target Coverage:** ≥80% line coverage
 

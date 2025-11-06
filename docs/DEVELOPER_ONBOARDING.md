@@ -154,11 +154,10 @@ PRRC/
 │   │   ├── schemas.py       # Message validation
 │   │   ├── hq_integration.py
 │   │   └── fieldops_integration.py
-│   ├── shared/              # Shared utilities
-│   │   ├── schemas.py       # Priority mapping, data schemas
-│   │   ├── error_handling.py  # Standardized error handling
-│   │   └── security.py      # Security utilities
-│   └── prrc_cli.py          # Command-line interface
+│   └── shared/              # Shared utilities
+│       ├── schemas.py       # Priority mapping, data schemas
+│       ├── error_handling.py  # Standardized error handling
+│       └── security.py      # Security utilities
 ├── tests/                   # Test suite
 │   ├── conftest.py          # Pytest configuration
 │   ├── test_integration.py  # Integration tests

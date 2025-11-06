@@ -43,16 +43,14 @@ Source Code (src/): ~5,674 LOC
 │   ├── telemetry.py: 296 LOC
 │   ├── connectors.py: 188 LOC
 │   └── hardware.py: 66 LOC
-├── bridge: ~50 LOC (1%)
-│   ├── comms_router.py: 25 LOC
-│   └── compliance.py: 25 LOC
-└── prrc_cli.py: ~115 LOC (2%)
+└── bridge: ~50 LOC (1%)
+    ├── comms_router.py: 25 LOC
+    └── compliance.py: 25 LOC
 
-Test Code (tests/): ~1,992 LOC
+Test Code (tests/): ~1,951 LOC
 ├── conftest.py: 324 LOC
 ├── hq_command/: ~423 LOC
-├── fieldops/: ~1,109 LOC
-└── test_prrc_cli.py: 41 LOC
+└── fieldops/: ~1,109 LOC
 ```
 
 ### Module Complexity
@@ -63,7 +61,6 @@ Test Code (tests/): ~1,992 LOC
 | fieldops | 2,980 | 8 | 373 | Medium-High |
 | fieldops/gui | 2,818 | 4 | 705 | High |
 | bridge | 50 | 2 | 25 | Low |
-| prrc_cli | 115 | 1 | 115 | Low |
 
 **Notes:**
 - fieldops/gui/app.py (1,130 LOC) is the largest file - candidate for refactoring
@@ -90,8 +87,7 @@ Coverage by Module (Estimated):
 │   ├── telemetry.py: ~75% (good)
 │   ├── connectors.py: ~60% (moderate)
 │   └── gui/app.py: ~40% (needs improvement)
-├── bridge: ~30% (minimal - placeholder code)
-└── prrc_cli: ~40% (basic coverage)
+└── bridge: ~30% (minimal - placeholder code)
 ```
 
 ### Coverage Targets (Phase 1+)

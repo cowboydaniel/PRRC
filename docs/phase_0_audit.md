@@ -38,9 +38,8 @@
 │   │   ├── mission_loader.py    # Mission handling (585 LOC)
 │   │   ├── telemetry.py         # Telemetry (296 LOC)
 │   │   └── hardware.py          # Hardware utils (66 LOC)
-│   ├── bridge/                  # Inter-agency comms (50 LOC)
-│   └── prrc_cli.py              # CLI entrypoint (115 LOC)
-├── tests/                        # Test suite (1,992 LOC)
+│   └── bridge/                  # Inter-agency comms (50 LOC)
+├── tests/                        # Test suite (1,951 LOC)
 │   ├── hq_command/              # HQ Command tests
 │   ├── fieldops/                # FieldOps tests
 │   └── conftest.py              # pytest configuration (expects PySide6)
@@ -250,12 +249,11 @@ tests/
 │   ├── test_gui_app_launch.py            # App init (111 LOC)
 │   ├── test_mission_loader.py            # Mission handling (322 LOC)
 │   └── test_telemetry.py                 # Telemetry (208 LOC)
-└── test_prrc_cli.py                      # CLI dispatch (41 LOC)
 ```
 
 ### Test Coverage Baseline
-- **Total Test Files:** 10
-- **Total Test LOC:** 1,992
+- **Total Test Files:** 9
+- **Total Test LOC:** 1,951
 - **Coverage Target:** ≥80% (per Phase 0 quality gates)
 
 ### Test Execution
@@ -336,10 +334,9 @@ Source Code Statistics:
 Module Breakdown:
 - hq_command: ~1,430 LOC (25%)
 - hq_command/gui: ~683 LOC (12%)
-- fieldops: ~2,980 LOC (52%)
+- fieldops: ~2,980 LOC (53%)
 - fieldops/gui: ~2,818 LOC (50%)
 - bridge: ~50 LOC (1%)
-- prrc_cli: ~115 LOC (2%)
 ```
 
 ### Complexity Baseline
