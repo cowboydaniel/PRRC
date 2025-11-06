@@ -277,8 +277,22 @@ class MissionCanvas(QWidget):
     def resizeEvent(self, event):
         """Handle resize for responsive layout."""
         super().resizeEvent(event)
-        # TODO: Implement responsive reflow for narrow screens (≤1023px)
-        # For now, splitter handles resizing gracefully
+
+        # Responsive reflow for narrow screens (≤1023px)
+        width = event.size().width()
+
+        if width <= 1023:
+            # Switch to vertical stacking for narrow screens
+            if self.splitter.orientation() == Qt.Horizontal:
+                self.splitter.setOrientation(Qt.Vertical)
+                # Equal distribution in vertical mode
+                self.splitter.setSizes([500, 500])
+        else:
+            # Return to horizontal layout for wider screens
+            if self.splitter.orientation() == Qt.Vertical:
+                self.splitter.setOrientation(Qt.Horizontal)
+                # Restore 55%/45% split
+                self.splitter.setSizes([550, 450])
 
 
 # =============================================================================
