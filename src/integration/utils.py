@@ -5,6 +5,58 @@ Provides convenience functions to set up Bridge components with
 reasonable defaults for testing and development.
 """
 from pathlib import Path
+from typing import Any, Mapping, Dict
+
+
+class DynamicBridgeCommsRouter:
+    """
+    Wrapper around BridgeCommsRouter that supports dynamic partner registration.
+
+    This router automatically creates partner endpoints for unknown partners
+    using a default configuration, which is useful for development and testing
+    where partner IDs may not be known in advance.
+    """
+
+    def __init__(self, base_router, default_protocol="local"):
+        """
+        Initialize the dynamic router wrapper.
+
+        Args:
+            base_router: The underlying BridgeCommsRouter instance
+            default_protocol: Protocol to use for dynamically created partners
+        """
+        self._router = base_router
+        self._default_protocol = default_protocol
+
+    def route(self, partner: str, payload: Mapping[str, Any]) -> Dict[str, Any]:
+        """
+        Route a message to a partner, creating the partner endpoint if needed.
+
+        Args:
+            partner: Partner ID to route to
+            payload: Message payload
+
+        Returns:
+            Routing result metadata
+        """
+        # Check if partner exists
+        if partner not in self._router._partners:
+            # Dynamically create partner endpoint
+            from bridge.comms_router import PartnerEndpoint
+
+            endpoint = PartnerEndpoint(
+                name=f"Dynamic Partner {partner}",
+                protocol=self._default_protocol,
+                target=partner,
+            )
+            self._router._partners[partner] = endpoint
+
+        # Route the message using the base router
+        return self._router.route(partner, payload)
+
+    def __getattr__(self, name):
+        """Delegate all other attributes to the base router"""
+        return getattr(self._router, name)
 
 
 def create_default_bridge_router():
@@ -80,11 +132,14 @@ def create_default_bridge_router():
     }
 
     # Create router with ledger and dead letter queue
-    router = BridgeCommsRouter(
+    base_router = BridgeCommsRouter(
         partners=partners,
         ledger=RoutingLedger(),
         dead_letter_queue=DeadLetterQueue(),
     )
+
+    # Wrap in dynamic router to support automatic partner registration
+    router = DynamicBridgeCommsRouter(base_router, default_protocol="local")
 
     return router
 
