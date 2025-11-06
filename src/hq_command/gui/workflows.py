@@ -36,6 +36,7 @@ from .qt_compat import (
     QListWidget,
     QListWidgetItem,
     QTabWidget,
+    QDialogButtonBox,
     Qt,
     pyqtSignal,
 )
@@ -307,7 +308,7 @@ class ManualAssignmentDialog(Modal):
         if not self.selected_units:
             self.validation_label.setText("No units selected.")
             self.validation_label.setStyleSheet("")
-            self.button_box.button(self.button_box.Ok).setEnabled(False)
+            self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(False)
             return
 
         # Get task requirements
@@ -321,7 +322,7 @@ class ManualAssignmentDialog(Modal):
                 f"⚠ Need at least {min_units} units. Currently selected: {len(self.selected_units)}"
             )
             self.validation_label.setStyleSheet(f"color: {theme.WARNING};")
-            self.button_box.button(self.button_box.Ok).setEnabled(False)
+            self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(False)
             return
 
         if len(self.selected_units) > max_units:
@@ -329,7 +330,7 @@ class ManualAssignmentDialog(Modal):
                 f"⚠ Maximum {max_units} units allowed. Currently selected: {len(self.selected_units)}"
             )
             self.validation_label.setStyleSheet(f"color: {theme.DANGER};")
-            self.button_box.button(self.button_box.Ok).setEnabled(False)
+            self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(False)
             return
 
         # Check capability coverage
@@ -351,7 +352,7 @@ class ManualAssignmentDialog(Modal):
                 f"⚠ Units at capacity: {', '.join(over_capacity_units)}"
             )
             self.validation_label.setStyleSheet(f"color: {theme.DANGER};")
-            self.button_box.button(self.button_box.Ok).setEnabled(False)
+            self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(False)
             return
 
         missing_caps = required_caps - combined_caps
@@ -360,7 +361,7 @@ class ManualAssignmentDialog(Modal):
                 f"⚠ Missing required capabilities: {', '.join(missing_caps)}"
             )
             self.validation_label.setStyleSheet(f"color: {theme.DANGER};")
-            self.button_box.button(self.button_box.Ok).setEnabled(False)
+            self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(False)
             return
 
         # All validations passed
@@ -368,7 +369,7 @@ class ManualAssignmentDialog(Modal):
             f"✓ Valid assignment: {len(self.selected_units)} unit(s) selected with all required capabilities."
         )
         self.validation_label.setStyleSheet(f"color: {theme.SUCCESS};")
-        self.button_box.button(self.button_box.Ok).setEnabled(True)
+        self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(True)
 
     def _confirm_assignment(self):
         """Confirm and emit assignment with audit trail (3-04)."""
@@ -555,7 +556,7 @@ class TaskCreationDialog(Modal):
         # Only validate if on the "From Scratch" tab (index 1)
         if self.tabs.currentIndex() == 0:
             # "From Call" tab - always enable OK button
-            self.button_box.button(self.button_box.Ok).setEnabled(True)
+            self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(True)
             return
 
         # Validate "From Scratch" tab
@@ -564,18 +565,18 @@ class TaskCreationDialog(Modal):
         if not task_id:
             self.validation_label.setText("⚠ Task ID is required")
             self.validation_label.setStyleSheet(f"color: {theme.DANGER};")
-            self.button_box.button(self.button_box.Ok).setEnabled(False)
+            self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(False)
             return
 
         if self.min_units_spin.value() > self.max_units_spin.value():
             self.validation_label.setText("⚠ Min units cannot exceed max units")
             self.validation_label.setStyleSheet(f"color: {theme.DANGER};")
-            self.button_box.button(self.button_box.Ok).setEnabled(False)
+            self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(False)
             return
 
         self.validation_label.setText("✓ Form valid")
         self.validation_label.setStyleSheet(f"color: {theme.SUCCESS};")
-        self.button_box.button(self.button_box.Ok).setEnabled(True)
+        self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(True)
 
     def _create_task(self):
         """Create task and emit signal."""
@@ -1181,7 +1182,7 @@ class CallIntakeDialog(Modal):
         self.content_layout.addLayout(action_layout)
 
         # Change default button behavior
-        self.button_box.button(self.button_box.Ok).setText("Save Call Only")
+        self.button_box.button(QDialogButtonBox.StandardButton.Ok).setText("Save Call Only")
         self.button_box.accepted.disconnect()
         self.button_box.accepted.connect(self._save_call)
 
