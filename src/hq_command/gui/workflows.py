@@ -526,6 +526,7 @@ class TaskCreationDialog(Modal):
 
         # Connect validation
         self.task_id_input.textChanged.connect(self._validate_form)
+        self.tabs.currentChanged.connect(self._validate_form)
         self.button_box.accepted.disconnect()
         self.button_box.accepted.connect(self._on_accept)
 
@@ -551,6 +552,13 @@ class TaskCreationDialog(Modal):
 
     def _validate_form(self):
         """Validate form inputs (3-05)."""
+        # Only validate if on the "From Scratch" tab (index 1)
+        if self.tabs.currentIndex() == 0:
+            # "From Call" tab - always enable OK button
+            self.button_box.button(self.button_box.Ok).setEnabled(True)
+            return
+
+        # Validate "From Scratch" tab
         task_id = self.task_id_input.text().strip()
 
         if not task_id:
