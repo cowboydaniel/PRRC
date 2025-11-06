@@ -720,8 +720,13 @@ class HQMainWindow(QMainWindow):
         super().resizeEvent(event)
 
         if hasattr(self, 'context_drawer'):
-            # Position drawer at right edge
+            # Position drawer at right edge and size it vertically
             parent_width = self.centralWidget().width()
+            parent_height = self.centralWidget().height()
+            drawer_height = parent_height - theme.STATUS_BAR_HEIGHT
+
+            self.context_drawer.setFixedHeight(drawer_height)
+
             if self.context_drawer.is_open:
                 self.context_drawer.move(
                     parent_width - theme.CONTEXT_DRAWER_WIDTH,
