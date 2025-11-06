@@ -567,6 +567,18 @@ class TaskQueuePane(QWidget):
         filters.update(self._active_preset_filters)
         return filters
 
+    def clear_filters(self) -> None:
+        """Clear all filters and show all tasks."""
+        # Clear preset filters
+        self._active_preset_filters = {}
+
+        # Reset dropdown filters to "All"
+        self._priority_filter.setCurrentText("All")
+        self._status_filter.setCurrentText("All")
+
+        # Clear the table filter
+        self._table_model.set_filter(None)
+
     def _show_context_menu(self, position) -> None:
         """Show context menu for task actions."""
         # Get selected row

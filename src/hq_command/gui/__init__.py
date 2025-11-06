@@ -105,9 +105,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     app = QtWidgets.QApplication(qt_argv)
     window = HQMainWindow(controller)
 
-    # Store active_devices reference on window for access during callbacks
+    # Store active_devices and hq_integration reference on window for access during callbacks
     if hq_integration:
         window._active_devices = active_devices
+        window._hq_integration = hq_integration
         # Update callback to emit signal for thread-safe GUI update
         def handle_status_update_with_refresh(payload: dict) -> None:
             """
@@ -128,6 +129,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         hq_integration.on_status_update_received(handle_status_update_with_refresh)
     else:
         window._active_devices = {}
+        window._hq_integration = None
 
     if hasattr(window, "showMaximized"):
         window.showMaximized()

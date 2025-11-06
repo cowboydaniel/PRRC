@@ -1271,6 +1271,13 @@ class HQMainWindow(QMainWindow):
         try:
             self.controller.add_task(task_data)
 
+            # Clear filters to ensure the new task is visible
+            self.task_pane.clear_filters()
+
+            # Send task to assigned field units if integration is available
+            if hasattr(self, '_hq_integration') and self._hq_integration is not None:
+                self._send_task_to_field_units(task_data)
+
             # Add notification
             self.notification_manager.add_system_notification(
                 "Task Created",
@@ -1285,6 +1292,55 @@ class HQMainWindow(QMainWindow):
         except ValueError as e:
             from .qt_compat import QMessageBox
             QMessageBox.warning(self, "Error", str(e))
+
+    def _send_task_to_field_units(self, task_data: Dict[str, Any]):
+        """Send newly created task to assigned field units."""
+        try:
+            task_id = task_data.get('task_id')
+            if not task_id:
+                logger.warning("Cannot send task to field units: missing task_id")
+                return
+
+            # Get the last schedule result from the controller
+            if not hasattr(self.controller, '_last_schedule'):
+                logger.warning("Cannot send task to field units: no schedule available")
+                return
+
+            schedule = self.controller._last_schedule
+            assignments = schedule.get('assignments', [])
+
+            # Find units assigned to this task
+            assigned_units = set()
+            for assignment in assignments:
+                if assignment.get('task_id') == task_id:
+                    unit_id = assignment.get('unit_id')
+                    if unit_id:
+                        assigned_units.add(unit_id)
+
+            if not assigned_units:
+                logger.info(f"Task {task_id} not assigned to any units (may be deferred)")
+                return
+
+            # Get operator ID
+            operator_id = self.controller.operator_id() or "unknown"
+
+            # Send task to each assigned unit
+            for unit_id in assigned_units:
+                try:
+                    success = self._hq_integration.send_tasks_to_field_unit(
+                        unit_id=unit_id,
+                        tasks=[task_data],
+                        operator_id=operator_id,
+                    )
+                    if success:
+                        logger.info(f"Sent task {task_id} to field unit {unit_id}")
+                    else:
+                        logger.warning(f"Failed to send task {task_id} to field unit {unit_id}")
+                except Exception as e:
+                    logger.error(f"Error sending task {task_id} to unit {unit_id}: {e}", exc_info=True)
+
+        except Exception as e:
+            logger.error(f"Error in _send_task_to_field_units: {e}", exc_info=True)
 
     def _show_task_edit_dialog(self, task_data: Dict[str, Any]):
         """Show task edit dialog (3-06)."""
