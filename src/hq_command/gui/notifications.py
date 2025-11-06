@@ -265,7 +265,6 @@ class NotificationPanel(QFrame):
         self.notification_items: Dict[str, NotificationItem] = {}
 
         self.setObjectName("Panel")
-        self.setMinimumWidth(400)
 
         self._build_ui()
 

@@ -129,7 +129,7 @@ MIN_TOUCH_TARGET = 44  # Minimum touch target size (glove-friendly)
 
 NAV_RAIL_WIDTH = 140  # Navigation rail width (wide enough for full menu text)
 STATUS_BAR_HEIGHT = 72  # Global status bar height (tall enough for search bar)
-CONTEXT_DRAWER_WIDTH = 360  # Right-side context drawer width
+CONTEXT_DRAWER_WIDTH = 500  # Right-side context drawer width
 PANEL_RESIZE_HANDLE_WIDTH = 4  # Resize handle for split panes
 SCROLLBAR_WIDTH = 12  # Custom scrollbar width
 
