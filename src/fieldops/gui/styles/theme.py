@@ -95,7 +95,7 @@ def component_styles() -> ComponentStyles:
         letter-spacing: {TYPOGRAPHY['navigation_label'].letter_spacing_em}em;
         min-height: {MIN_CONTROL_HEIGHT_PX}px;
         padding: {SPACING_GRID_PX}px {HORIZONTAL_PADDING_PX}px;
-        opacity: 0.6;
+        opacity: 0.85;
     }}
     QToolButton#NavigationRailButton:checked,
     QToolButton#NavigationRailButton:hover {{
