@@ -428,7 +428,18 @@ def create_bridge_sync_adapter(fieldops: FieldOpsIntegration):
         def __init__(self, fieldops_integration: FieldOpsIntegration):
             self.fieldops = fieldops_integration
 
-        def push_operations(self, operations: list) -> dict:
+        def is_available(self) -> bool:
+            """
+            Check if Bridge connection is available for sync
+
+            Returns:
+                True - Bridge handles offline queueing internally
+            """
+            # Bridge is designed to queue messages when offline,
+            # so we always return True and let the bridge handle resilience
+            return True
+
+        def push_operations(self, operations: list):
             """
             Push offline operations to HQ through Bridge
 
@@ -436,41 +447,54 @@ def create_bridge_sync_adapter(fieldops: FieldOpsIntegration):
                 operations: List of OfflineOperation objects
 
             Returns:
-                Sync result with accepted/rejected operations
+                SyncResult with applied operation IDs, conflicts, and errors
             """
+            try:
+                from ..fieldops.gui.state import SyncResult
+            except ImportError:
+                from fieldops.gui.state import SyncResult
+
             # Serialize operations
             serialized = []
             failed_ids = []
             for op in operations:
                 try:
                     op_dict = {
-                        "id": op.id,
-                        "type": op.type,
+                        "id": op.operation_id if hasattr(op, 'operation_id') else op.id,
+                        "type": op.operation_type if hasattr(op, 'operation_type') else op.type,
                         "payload": op.payload,
                         "created_at": op.created_at.isoformat() if hasattr(op.created_at, 'isoformat') else str(op.created_at),
                     }
                     serialized.append(op_dict)
                 except Exception as e:
-                    logger.error(f"Error serializing operation {op.id}: {e}")
-                    failed_ids.append(op.id)
+                    op_id = getattr(op, 'operation_id', getattr(op, 'id', 'unknown'))
+                    logger.error(f"Error serializing operation {op_id}: {e}")
+                    failed_ids.append(op_id)
                     continue
 
             # Send through Bridge
             success = self.fieldops.sync_operations_to_hq(serialized)
 
-            # Return result
+            # Return SyncResult
             if success:
-                return {
-                    "accepted": [op.id for op in operations if op.id not in failed_ids],
-                    "rejected": failed_ids,
-                    "errors": [f"Serialization failed: {fid}" for fid in failed_ids],
-                }
+                applied_ids = tuple(
+                    getattr(op, 'operation_id', getattr(op, 'id', None))
+                    for op in operations
+                    if getattr(op, 'operation_id', getattr(op, 'id', None)) not in failed_ids
+                )
+                errors = tuple(f"Serialization failed: {fid}" for fid in failed_ids) if failed_ids else ()
+                return SyncResult(
+                    applied_operation_ids=applied_ids,
+                    conflicts=(),
+                    errors=errors,
+                )
             else:
-                return {
-                    "accepted": [],
-                    "rejected": [op.id for op in operations],
-                    "errors": ["Failed to sync through Bridge"],
-                }
+                all_ids = [getattr(op, 'operation_id', getattr(op, 'id', 'unknown')) for op in operations]
+                return SyncResult(
+                    applied_operation_ids=(),
+                    conflicts=(),
+                    errors=("Failed to sync through Bridge",),
+                )
 
         def pull_changes(self) -> list:
             """
