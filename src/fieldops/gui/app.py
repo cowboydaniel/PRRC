@@ -1113,10 +1113,10 @@ class TelemetryView(QWidget):
         # Store snapshot for detailed view
         self._current_snapshot: TelemetrySnapshot | None = None
 
-        # Connect card clicks to show details
-        self._sensor_card.clicked.connect(self._show_details)
-        self._event_card.clicked.connect(self._show_details)
-        self._queue_card.clicked.connect(self._show_details)
+        # Connect each card to its specific dialog
+        self._sensor_card.clicked.connect(self._show_sensor_details)
+        self._event_card.clicked.connect(self._show_event_details)
+        self._queue_card.clicked.connect(self._show_queue_details)
 
         layout.addWidget(self._sensor_card)
         layout.addWidget(self._event_card)
@@ -1159,13 +1159,31 @@ class TelemetryView(QWidget):
             card.set_degraded(True)
             card.set_lines(["No telemetry available"])
 
-    def _show_details(self) -> None:
-        """Show detailed telemetry dialog when a card is clicked."""
+    def _show_sensor_details(self) -> None:
+        """Show detailed sensor readings dialog."""
         if self._current_snapshot is None:
             return
 
-        from .dialogs import SensorDetailsDialog
-        dialog = SensorDetailsDialog(self._current_snapshot, self)
+        from .dialogs import SensorReadingsDialog
+        dialog = SensorReadingsDialog(self._current_snapshot, self)
+        dialog.exec()
+
+    def _show_event_details(self) -> None:
+        """Show detailed cached events dialog."""
+        if self._current_snapshot is None:
+            return
+
+        from .dialogs import CachedEventsDialog
+        dialog = CachedEventsDialog(self._current_snapshot, self)
+        dialog.exec()
+
+    def _show_queue_details(self) -> None:
+        """Show detailed queue backlog dialog."""
+        if self._current_snapshot is None:
+            return
+
+        from .dialogs import QueueBacklogDialog
+        dialog = QueueBacklogDialog(self._current_snapshot, self)
         dialog.exec()
 
 
