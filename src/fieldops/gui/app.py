@@ -1336,6 +1336,7 @@ def launch_app(*, demo_mode: bool = False) -> int:
 
     # Set up integration with configured device ID
     device_id = config.get("device_id")
+    integration = None
     if device_id and INTEGRATION_AVAILABLE:
         integration = setup_integration(device_id=device_id)
         if integration:
@@ -1353,8 +1354,22 @@ def launch_app(*, demo_mode: bool = False) -> int:
             print(f"Sent initial status update to HQ Command")
 
     cache_path = Path.home() / ".prrc" / "fieldops_offline_queue.json"
-    adapter = LocalEchoSyncAdapter()
+
+    # Use real bridge sync adapter if integration is available, otherwise use local echo
+    if integration and INTEGRATION_AVAILABLE:
+        from integration import integrate_with_gui_controller
+        adapter = create_bridge_sync_adapter(integration)
+    else:
+        adapter = LocalEchoSyncAdapter()
+
     controller = FieldOpsGUIController(cache_path, adapter)
+
+    # Wire integration callbacks to GUI controller
+    if integration and INTEGRATION_AVAILABLE:
+        from integration import integrate_with_gui_controller
+        integrate_with_gui_controller(integration, controller)
+        print("Wired FieldOps integration to GUI controller")
+
     demo_package = _prepare_demo_package() if demo_mode else None
     window = FieldOpsMainWindow(
         controller,
