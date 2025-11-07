@@ -137,16 +137,27 @@ def collect_telemetry_snapshot() -> TelemetrySnapshot:
     )
 
 
-def _get_telemetry_config() -> FieldOpsTelemetryConfig:
-    """Return the telemetry configuration sourced from the environment."""
+def _get_telemetry_config() -> FieldOpsTelemetryConfig | None:
+    """Return the telemetry configuration sourced from the environment.
 
-    return FieldOpsTelemetryConfig.from_env()
+    Returns:
+        FieldOpsTelemetryConfig if environment variables are set, None otherwise.
+    """
+    try:
+        return FieldOpsTelemetryConfig.from_env()
+    except RuntimeError:
+        # Configuration not available - return None to enable mock/stub mode
+        return None
 
 
 def _load_sensor_api_data() -> Sequence[Mapping[str, Any]]:
     """Load sensor readings from the FieldOps sensor API."""
 
     config = _get_telemetry_config()
+    if config is None:
+        # Return stub data when configuration is unavailable
+        return []
+
     client = FieldOpsSensorClient(
         config.api_base_url, config.api_token, config.timeout_seconds
     )
@@ -157,6 +168,10 @@ def _load_cached_events() -> Iterable[Mapping[str, Any]]:
     """Load cached events from the FieldOps event API."""
 
     config = _get_telemetry_config()
+    if config is None:
+        # Return stub data when configuration is unavailable
+        return []
+
     client = FieldOpsEventClient(
         config.api_base_url, config.api_token, config.timeout_seconds
     )
@@ -167,6 +182,10 @@ def _load_queue_depths() -> Mapping[str, Any]:
     """Load queue depth metrics from the FieldOps queue API."""
 
     config = _get_telemetry_config()
+    if config is None:
+        # Return stub data when configuration is unavailable
+        return {}
+
     client = FieldOpsQueueClient(
         config.api_base_url, config.api_token, config.timeout_seconds
     )
