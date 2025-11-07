@@ -383,7 +383,10 @@ class ContextDrawer(QFrame):
         while self.content_layout.count() > 0:
             item = self.content_layout.takeAt(0)
             if item.widget():
-                item.widget().deleteLater()
+                # Remove widget from layout without deleting it
+                # This allows reusable widgets to be added again later
+                widget = item.widget()
+                widget.setParent(None)
 
         self.content_layout.addStretch(1)
 
