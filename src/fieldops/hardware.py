@@ -284,16 +284,7 @@ def read_system_sensors() -> List[Dict[str, Any]]:
                         })
                         break  # Just read first zone
     except Exception:
-        pass  # Fall through to simulated data
-
-    # If no real CPU temp, simulate
-    if not any(s["sensor"].startswith("cpu_thermal") for s in sensors):
-        sensors.append({
-            "sensor": "cpu_thermal_zone0",
-            "value": round(random.uniform(45.0, 65.0), 2),
-            "unit": "celsius",
-            "timestamp": timestamp,
-        })
+        pass  # Only use real sensor data
 
     # Battery - try to read from actual hardware
     try:
@@ -334,40 +325,7 @@ def read_system_sensors() -> List[Dict[str, Any]]:
                         "timestamp": timestamp,
                     })
     except Exception:
-        pass  # Fall through to simulated data
-
-    # If no real battery data, simulate
-    if not any(s["sensor"] == "battery_capacity" for s in sensors):
-        sensors.extend([
-            {
-                "sensor": "battery_capacity",
-                "value": round(random.uniform(60.0, 95.0), 2),
-                "unit": "percent",
-                "timestamp": timestamp,
-            },
-            {
-                "sensor": "battery_voltage",
-                "value": round(random.uniform(11.1, 12.6), 2),
-                "unit": "volts",
-                "timestamp": timestamp,
-            },
-        ])
-
-    # Ambient temperature - simulated for now (would need external sensor)
-    sensors.append({
-        "sensor": "ambient_temperature",
-        "value": round(random.uniform(18.0, 28.0), 2),
-        "unit": "celsius",
-        "timestamp": timestamp,
-    })
-
-    # Barometric pressure - simulated for now (would need external sensor)
-    sensors.append({
-        "sensor": "barometric_pressure",
-        "value": round(random.uniform(980.0, 1020.0), 2),
-        "unit": "hectopascal",
-        "timestamp": timestamp,
-    })
+        pass  # Only use real sensor data
 
     return sensors
 
@@ -378,14 +336,12 @@ def get_queue_metrics() -> Dict[str, int]:
     Returns:
         Dictionary of queue names to depth counts
     """
-    import random
-
     # In production, this would read from the actual offline queue
-    # For now, simulate queue depths
+    # Return empty queues (no simulation)
     return {
-        "telemetry_upload": random.randint(0, 5),
-        "task_sync": random.randint(0, 3),
-        "log_submission": random.randint(0, 8),
+        "telemetry_upload": 0,
+        "task_sync": 0,
+        "log_submission": 0,
     }
 
 
@@ -395,26 +351,6 @@ def get_cached_system_events() -> List[Dict[str, Any]]:
     Returns:
         List of cached event records
     """
-    from datetime import datetime, timezone, timedelta
-    import random
-
     # In production, this would read from actual system event log
-    # For now, simulate recent events
-    events = []
-    event_types = [
-        "gps_fix_acquired",
-        "network_connected",
-        "mission_loaded",
-        "task_completed",
-        "radio_message_received",
-    ]
-
-    now = datetime.now(timezone.utc)
-    for event_type in random.sample(event_types, k=random.randint(1, 3)):
-        events.append({
-            "event": event_type,
-            "count": random.randint(1, 5),
-            "last_seen": (now - timedelta(minutes=random.randint(1, 30))).isoformat(),
-        })
-
-    return events
+    # Return empty list (no simulation)
+    return []
