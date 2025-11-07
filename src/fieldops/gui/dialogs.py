@@ -454,15 +454,15 @@ class JobAcceptanceDialog(QDialog):
         }
 
 
-class SensorDetailsDialog(QDialog):
-    """Dialog showing detailed sensor readings, events, and queue information."""
+class SensorReadingsDialog(QDialog):
+    """Dialog showing comprehensive sensor readings."""
 
     def __init__(self, snapshot: Any, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Telemetry Details")
+        self.setWindowTitle("Sensor Readings - Detailed View")
         self.setModal(True)
-        self.setMinimumWidth(800)
-        self.setMinimumHeight(600)
+        self.setMinimumWidth(900)
+        self.setMinimumHeight(700)
 
         self._snapshot = snapshot
         self._build_ui()
@@ -477,133 +477,206 @@ class SensorDetailsDialog(QDialog):
         )
         layout.setSpacing(SPACING_GRID_PX * 2)
 
-        # Header with status
+        # Header
         header = QLabel(
-            f"<h2>Telemetry Snapshot</h2>"
-            f"<p><b>Status:</b> {self._snapshot.status.upper()} | "
-            f"<b>Collected:</b> {self._snapshot.collected_at}</p>"
+            f"<h2>Sensor Readings</h2>"
+            f"<p><b>Collected:</b> {self._snapshot.collected_at} | "
+            f"<b>Total Sensors:</b> {len(self._snapshot.metrics.sensors)}</p>"
         )
         header.setWordWrap(True)
         layout.addWidget(header)
 
-        # Notes section if any
-        if self._snapshot.notes:
-            notes_text = "<br>".join(f"• {note}" for note in self._snapshot.notes)
-            notes_label = QLabel(f"<p><b>Notes:</b><br>{notes_text}</p>")
-            notes_label.setWordWrap(True)
-            notes_label.setStyleSheet("background-color: #fff3cd; padding: 8px; border-radius: 4px;")
-            layout.addWidget(notes_label)
-
-        # Sensor Readings Section
-        sensor_group = QGroupBox("Sensor Readings")
-        sensor_layout = QVBoxLayout(sensor_group)
-        sensor_layout.setSpacing(SPACING_GRID_PX)
-
+        # Sensor table
         if self._snapshot.metrics.sensors:
             sensor_text = QTextEdit()
             sensor_text.setReadOnly(True)
-            sensor_text.setMinimumHeight(200)
 
             # Build formatted sensor table
             sensor_content = "<table style='width: 100%; border-collapse: collapse;'>"
-            sensor_content += "<tr style='background-color: #e9ecef; font-weight: bold;'>"
-            sensor_content += "<th style='padding: 8px; text-align: left; border: 1px solid #dee2e6;'>Sensor</th>"
-            sensor_content += "<th style='padding: 8px; text-align: right; border: 1px solid #dee2e6;'>Value</th>"
-            sensor_content += "<th style='padding: 8px; text-align: left; border: 1px solid #dee2e6;'>Unit</th>"
-            sensor_content += "<th style='padding: 8px; text-align: left; border: 1px solid #dee2e6;'>Timestamp</th>"
+            sensor_content += "<tr style='background-color: #0d6efd; color: white; font-weight: bold;'>"
+            sensor_content += "<th style='padding: 10px; text-align: left;'>Sensor Name</th>"
+            sensor_content += "<th style='padding: 10px; text-align: right;'>Value</th>"
+            sensor_content += "<th style='padding: 10px; text-align: left;'>Unit</th>"
+            sensor_content += "<th style='padding: 10px; text-align: left;'>Timestamp</th>"
             sensor_content += "</tr>"
 
             for i, reading in enumerate(self._snapshot.metrics.sensors):
                 bg_color = "#f8f9fa" if i % 2 == 0 else "#ffffff"
                 sensor_content += f"<tr style='background-color: {bg_color};'>"
                 sensor_content += f"<td style='padding: 8px; border: 1px solid #dee2e6;'><b>{reading.sensor}</b></td>"
-                sensor_content += f"<td style='padding: 8px; text-align: right; border: 1px solid #dee2e6;'>{reading.value}</td>"
+                sensor_content += f"<td style='padding: 8px; text-align: right; border: 1px solid #dee2e6; font-family: monospace;'>{reading.value}</td>"
                 sensor_content += f"<td style='padding: 8px; border: 1px solid #dee2e6;'>{reading.unit}</td>"
-                sensor_content += f"<td style='padding: 8px; border: 1px solid #dee2e6; font-family: monospace; font-size: 11px;'>{reading.timestamp}</td>"
+                sensor_content += f"<td style='padding: 8px; border: 1px solid #dee2e6; font-family: monospace; font-size: 10px; color: #6c757d;'>{reading.timestamp}</td>"
                 sensor_content += "</tr>"
 
             sensor_content += "</table>"
             sensor_text.setHtml(sensor_content)
-            sensor_layout.addWidget(sensor_text)
+            layout.addWidget(sensor_text)
         else:
             no_sensors = QLabel("No sensor readings available")
-            no_sensors.setStyleSheet("color: gray; font-style: italic; padding: 16px;")
-            sensor_layout.addWidget(no_sensors)
+            no_sensors.setStyleSheet("color: gray; font-style: italic; padding: 32px; font-size: 14px;")
+            no_sensors.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(no_sensors)
 
-        layout.addWidget(sensor_group)
+        # Close button
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
 
-        # Events Section
-        events_group = QGroupBox("Cached Events")
-        events_layout = QVBoxLayout(events_group)
-        events_layout.setSpacing(SPACING_GRID_PX)
 
+class CachedEventsDialog(QDialog):
+    """Dialog showing cached system events."""
+
+    def __init__(self, snapshot: Any, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Cached Events - Detailed View")
+        self.setModal(True)
+        self.setMinimumWidth(800)
+        self.setMinimumHeight(500)
+
+        self._snapshot = snapshot
+        self._build_ui()
+
+    def _build_ui(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(
+            HORIZONTAL_PADDING_PX,
+            SPACING_GRID_PX * 2,
+            HORIZONTAL_PADDING_PX,
+            SPACING_GRID_PX * 2,
+        )
+        layout.setSpacing(SPACING_GRID_PX * 2)
+
+        # Header
+        header = QLabel(
+            f"<h2>Cached System Events</h2>"
+            f"<p><b>Collected:</b> {self._snapshot.collected_at} | "
+            f"<b>Total Events:</b> {self._snapshot.metrics.events.total_events}</p>"
+        )
+        header.setWordWrap(True)
+        layout.addWidget(header)
+
+        # Events table
         if self._snapshot.metrics.events.records:
             events_text = QTextEdit()
             events_text.setReadOnly(True)
-            events_text.setMinimumHeight(150)
 
-            events_content = f"<p><b>Total Events:</b> {self._snapshot.metrics.events.total_events}</p>"
-            events_content += "<table style='width: 100%; border-collapse: collapse; margin-top: 8px;'>"
-            events_content += "<tr style='background-color: #e9ecef; font-weight: bold;'>"
-            events_content += "<th style='padding: 8px; text-align: left; border: 1px solid #dee2e6;'>Event Type</th>"
-            events_content += "<th style='padding: 8px; text-align: right; border: 1px solid #dee2e6;'>Count</th>"
-            events_content += "<th style='padding: 8px; text-align: left; border: 1px solid #dee2e6;'>Last Seen</th>"
+            events_content = "<table style='width: 100%; border-collapse: collapse;'>"
+            events_content += "<tr style='background-color: #198754; color: white; font-weight: bold;'>"
+            events_content += "<th style='padding: 10px; text-align: left;'>Event Type</th>"
+            events_content += "<th style='padding: 10px; text-align: right;'>Count</th>"
+            events_content += "<th style='padding: 10px; text-align: left;'>Last Seen</th>"
             events_content += "</tr>"
 
             for i, record in enumerate(self._snapshot.metrics.events.records):
                 bg_color = "#f8f9fa" if i % 2 == 0 else "#ffffff"
                 events_content += f"<tr style='background-color: {bg_color};'>"
                 events_content += f"<td style='padding: 8px; border: 1px solid #dee2e6;'><b>{record.event}</b></td>"
-                events_content += f"<td style='padding: 8px; text-align: right; border: 1px solid #dee2e6;'>{record.count}</td>"
+                events_content += f"<td style='padding: 8px; text-align: right; border: 1px solid #dee2e6; font-family: monospace; font-size: 16px;'>{record.count}</td>"
                 events_content += f"<td style='padding: 8px; border: 1px solid #dee2e6; font-family: monospace; font-size: 11px;'>{record.last_seen}</td>"
                 events_content += "</tr>"
 
             events_content += "</table>"
             events_text.setHtml(events_content)
-            events_layout.addWidget(events_text)
+            layout.addWidget(events_text)
         else:
             no_events = QLabel("No cached events")
-            no_events.setStyleSheet("color: gray; font-style: italic; padding: 16px;")
-            events_layout.addWidget(no_events)
+            no_events.setStyleSheet("color: gray; font-style: italic; padding: 32px; font-size: 14px;")
+            no_events.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(no_events)
 
-        layout.addWidget(events_group)
+        # Close button
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
 
-        # Queue Metrics Section
-        queue_group = QGroupBox("Queue Backlog")
-        queue_layout = QVBoxLayout(queue_group)
-        queue_layout.setSpacing(SPACING_GRID_PX)
 
+class QueueBacklogDialog(QDialog):
+    """Dialog showing queue backlog details."""
+
+    def __init__(self, snapshot: Any, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Queue Backlog - Detailed View")
+        self.setModal(True)
+        self.setMinimumWidth(700)
+        self.setMinimumHeight(400)
+
+        self._snapshot = snapshot
+        self._build_ui()
+
+    def _build_ui(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(
+            HORIZONTAL_PADDING_PX,
+            SPACING_GRID_PX * 2,
+            HORIZONTAL_PADDING_PX,
+            SPACING_GRID_PX * 2,
+        )
+        layout.setSpacing(SPACING_GRID_PX * 2)
+
+        # Header
+        total_backlog = self._snapshot.metrics.queues.total_backlog
+        status_color = "#dc3545" if total_backlog > 10 else "#ffc107" if total_backlog > 5 else "#198754"
+
+        header = QLabel(
+            f"<h2>Queue Backlog</h2>"
+            f"<p><b>Collected:</b> {self._snapshot.collected_at} | "
+            f"<b>Total Backlog:</b> <span style='color: {status_color}; font-weight: bold;'>{total_backlog}</span></p>"
+        )
+        header.setWordWrap(True)
+        layout.addWidget(header)
+
+        # Status indicator
+        if total_backlog > 10:
+            status_msg = "⚠️ <b>HIGH BACKLOG:</b> Queue depths are critically high. Operations may be delayed."
+            status_style = "background-color: #f8d7da; border-left: 4px solid #dc3545; padding: 12px;"
+        elif total_backlog > 5:
+            status_msg = "⚡ <b>MODERATE BACKLOG:</b> Queue depths are elevated. Monitor for continued growth."
+            status_style = "background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 12px;"
+        else:
+            status_msg = "✓ <b>NORMAL:</b> Queue depths are within acceptable limits."
+            status_style = "background-color: #d1e7dd; border-left: 4px solid #198754; padding: 12px;"
+
+        status_label = QLabel(status_msg)
+        status_label.setWordWrap(True)
+        status_label.setStyleSheet(status_style)
+        layout.addWidget(status_label)
+
+        # Queue table
         queue_text = QTextEdit()
         queue_text.setReadOnly(True)
-        queue_text.setMaximumHeight(150)
+        queue_text.setMinimumHeight(200)
 
-        queue_content = f"<p><b>Total Backlog:</b> {self._snapshot.metrics.queues.total_backlog}</p>"
-        queue_content += "<table style='width: 100%; border-collapse: collapse; margin-top: 8px;'>"
-        queue_content += "<tr style='background-color: #e9ecef; font-weight: bold;'>"
-        queue_content += "<th style='padding: 8px; text-align: left; border: 1px solid #dee2e6;'>Queue Name</th>"
-        queue_content += "<th style='padding: 8px; text-align: right; border: 1px solid #dee2e6;'>Depth</th>"
+        queue_content = "<table style='width: 100%; border-collapse: collapse;'>"
+        queue_content += "<tr style='background-color: #6f42c1; color: white; font-weight: bold;'>"
+        queue_content += "<th style='padding: 10px; text-align: left;'>Queue Name</th>"
+        queue_content += "<th style='padding: 10px; text-align: right;'>Depth</th>"
+        queue_content += "<th style='padding: 10px; text-align: left;'>Status</th>"
         queue_content += "</tr>"
 
         for i, (queue_name, depth) in enumerate(self._snapshot.metrics.queues.queues.items()):
             bg_color = "#f8f9fa" if i % 2 == 0 else "#ffffff"
-            # Color code based on depth
+
+            # Determine status
             if depth > 10:
-                status_color = "#dc3545"  # Red for high backlog
+                status = "CRITICAL"
+                status_color = "#dc3545"
             elif depth > 5:
-                status_color = "#ffc107"  # Yellow for medium
+                status = "WARNING"
+                status_color = "#ffc107"
             else:
-                status_color = "#28a745"  # Green for low/zero
+                status = "OK"
+                status_color = "#198754"
 
             queue_content += f"<tr style='background-color: {bg_color};'>"
-            queue_content += f"<td style='padding: 8px; border: 1px solid #dee2e6;'><b>{queue_name}</b></td>"
-            queue_content += f"<td style='padding: 8px; text-align: right; border: 1px solid #dee2e6; color: {status_color}; font-weight: bold;'>{depth}</td>"
+            queue_content += f"<td style='padding: 10px; border: 1px solid #dee2e6;'><b>{queue_name}</b></td>"
+            queue_content += f"<td style='padding: 10px; text-align: right; border: 1px solid #dee2e6; font-family: monospace; font-size: 18px; font-weight: bold;'>{depth}</td>"
+            queue_content += f"<td style='padding: 10px; border: 1px solid #dee2e6; color: {status_color}; font-weight: bold;'>{status}</td>"
             queue_content += "</tr>"
 
         queue_content += "</table>"
         queue_text.setHtml(queue_content)
-        queue_layout.addWidget(queue_text)
-
-        layout.addWidget(queue_group)
+        layout.addWidget(queue_text)
 
         # Close button
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
@@ -615,5 +688,7 @@ __all__ = [
     "FirstRunDialog",
     "JobAcceptanceDialog",
     "FieldOpsConfig",
-    "SensorDetailsDialog",
+    "SensorReadingsDialog",
+    "CachedEventsDialog",
+    "QueueBacklogDialog",
 ]

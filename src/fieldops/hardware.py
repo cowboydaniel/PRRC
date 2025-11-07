@@ -250,82 +250,315 @@ def receive_radio_messages() -> List[Dict[str, Any]]:
 
 
 def read_system_sensors() -> List[Dict[str, Any]]:
-    """Read system sensors from Dell Rugged Extreme hardware.
+    """Read comprehensive system sensors from Dell Rugged Extreme hardware.
 
-    Attempts to read real hardware sensors when available, falls back to
-    simulated data for development/testing.
+    Collects extensive sensor data including CPU, memory, disk, network, battery,
+    and system metrics for detailed telemetry monitoring.
 
     Returns:
         List of sensor readings with standardized format
     """
     from datetime import datetime, timezone
-    import random
     import platform
+    import os
+    import psutil
 
     sensors = []
     timestamp = datetime.now(timezone.utc).isoformat()
 
-    # CPU Temperature - try to read from actual hardware
+    # ========== CPU SENSORS ==========
     try:
         if platform.system() == "Linux":
-            # Try reading from Linux thermal zones
+            # Read ALL thermal zones, not just first
             thermal_zones = Path("/sys/class/thermal")
             if thermal_zones.exists():
                 for zone in thermal_zones.glob("thermal_zone*"):
                     temp_file = zone / "temp"
+                    type_file = zone / "type"
                     if temp_file.exists():
                         temp_millicelsius = int(temp_file.read_text().strip())
                         temp_celsius = temp_millicelsius / 1000.0
+                        zone_type = type_file.read_text().strip() if type_file.exists() else zone.name
                         sensors.append({
-                            "sensor": f"cpu_thermal_{zone.name}",
+                            "sensor": f"thermal_{zone.name}",
                             "value": round(temp_celsius, 2),
                             "unit": "celsius",
                             "timestamp": timestamp,
+                            "description": zone_type,
                         })
-                        break  # Just read first zone
     except Exception:
-        pass  # Only use real sensor data
+        pass
 
-    # Battery - try to read from actual hardware
+    # CPU frequencies per core
+    try:
+        cpu_freqs = psutil.cpu_freq(percpu=True)
+        if cpu_freqs:
+            for i, freq in enumerate(cpu_freqs):
+                sensors.append({
+                    "sensor": f"cpu_core{i}_frequency",
+                    "value": round(freq.current, 2),
+                    "unit": "MHz",
+                    "timestamp": timestamp,
+                })
+    except Exception:
+        pass
+
+    # CPU load average
+    try:
+        load1, load5, load15 = os.getloadavg()
+        sensors.extend([
+            {"sensor": "cpu_load_1min", "value": round(load1, 2), "unit": "load", "timestamp": timestamp},
+            {"sensor": "cpu_load_5min", "value": round(load5, 2), "unit": "load", "timestamp": timestamp},
+            {"sensor": "cpu_load_15min", "value": round(load15, 2), "unit": "load", "timestamp": timestamp},
+        ])
+    except Exception:
+        pass
+
+    # CPU usage per core
+    try:
+        cpu_percents = psutil.cpu_percent(interval=0.1, percpu=True)
+        for i, percent in enumerate(cpu_percents):
+            sensors.append({
+                "sensor": f"cpu_core{i}_usage",
+                "value": round(percent, 2),
+                "unit": "percent",
+                "timestamp": timestamp,
+            })
+    except Exception:
+        pass
+
+    # Overall CPU usage
+    try:
+        sensors.append({
+            "sensor": "cpu_usage_total",
+            "value": round(psutil.cpu_percent(interval=0.1), 2),
+            "unit": "percent",
+            "timestamp": timestamp,
+        })
+    except Exception:
+        pass
+
+    # ========== MEMORY SENSORS ==========
+    try:
+        mem = psutil.virtual_memory()
+        sensors.extend([
+            {"sensor": "memory_total", "value": round(mem.total / (1024**3), 2), "unit": "GB", "timestamp": timestamp},
+            {"sensor": "memory_available", "value": round(mem.available / (1024**3), 2), "unit": "GB", "timestamp": timestamp},
+            {"sensor": "memory_used", "value": round(mem.used / (1024**3), 2), "unit": "GB", "timestamp": timestamp},
+            {"sensor": "memory_free", "value": round(mem.free / (1024**3), 2), "unit": "GB", "timestamp": timestamp},
+            {"sensor": "memory_usage_percent", "value": round(mem.percent, 2), "unit": "percent", "timestamp": timestamp},
+            {"sensor": "memory_cached", "value": round(mem.cached / (1024**3), 2), "unit": "GB", "timestamp": timestamp},
+            {"sensor": "memory_buffers", "value": round(mem.buffers / (1024**3), 2), "unit": "GB", "timestamp": timestamp},
+        ])
+    except Exception:
+        pass
+
+    # Swap memory
+    try:
+        swap = psutil.swap_memory()
+        sensors.extend([
+            {"sensor": "swap_total", "value": round(swap.total / (1024**3), 2), "unit": "GB", "timestamp": timestamp},
+            {"sensor": "swap_used", "value": round(swap.used / (1024**3), 2), "unit": "GB", "timestamp": timestamp},
+            {"sensor": "swap_free", "value": round(swap.free / (1024**3), 2), "unit": "GB", "timestamp": timestamp},
+            {"sensor": "swap_usage_percent", "value": round(swap.percent, 2), "unit": "percent", "timestamp": timestamp},
+        ])
+    except Exception:
+        pass
+
+    # ========== DISK SENSORS ==========
+    try:
+        for partition in psutil.disk_partitions():
+            try:
+                usage = psutil.disk_usage(partition.mountpoint)
+                mount_safe = partition.mountpoint.replace("/", "_").strip("_") or "root"
+                sensors.extend([
+                    {"sensor": f"disk_{mount_safe}_total", "value": round(usage.total / (1024**3), 2), "unit": "GB", "timestamp": timestamp},
+                    {"sensor": f"disk_{mount_safe}_used", "value": round(usage.used / (1024**3), 2), "unit": "GB", "timestamp": timestamp},
+                    {"sensor": f"disk_{mount_safe}_free", "value": round(usage.free / (1024**3), 2), "unit": "GB", "timestamp": timestamp},
+                    {"sensor": f"disk_{mount_safe}_usage_percent", "value": round(usage.percent, 2), "unit": "percent", "timestamp": timestamp},
+                ])
+            except (PermissionError, OSError):
+                continue
+    except Exception:
+        pass
+
+    # Disk I/O counters
+    try:
+        disk_io = psutil.disk_io_counters()
+        if disk_io:
+            sensors.extend([
+                {"sensor": "disk_io_read_bytes", "value": round(disk_io.read_bytes / (1024**2), 2), "unit": "MB", "timestamp": timestamp},
+                {"sensor": "disk_io_write_bytes", "value": round(disk_io.write_bytes / (1024**2), 2), "unit": "MB", "timestamp": timestamp},
+                {"sensor": "disk_io_read_count", "value": disk_io.read_count, "unit": "operations", "timestamp": timestamp},
+                {"sensor": "disk_io_write_count", "value": disk_io.write_count, "unit": "operations", "timestamp": timestamp},
+            ])
+    except Exception:
+        pass
+
+    # ========== NETWORK SENSORS ==========
+    try:
+        net_io = psutil.net_io_counters(pernic=True)
+        for interface, counters in net_io.items():
+            # Skip loopback
+            if interface == "lo":
+                continue
+            sensors.extend([
+                {"sensor": f"net_{interface}_bytes_sent", "value": round(counters.bytes_sent / (1024**2), 2), "unit": "MB", "timestamp": timestamp},
+                {"sensor": f"net_{interface}_bytes_recv", "value": round(counters.bytes_recv / (1024**2), 2), "unit": "MB", "timestamp": timestamp},
+                {"sensor": f"net_{interface}_packets_sent", "value": counters.packets_sent, "unit": "packets", "timestamp": timestamp},
+                {"sensor": f"net_{interface}_packets_recv", "value": counters.packets_recv, "unit": "packets", "timestamp": timestamp},
+                {"sensor": f"net_{interface}_errors_in", "value": counters.errin, "unit": "errors", "timestamp": timestamp},
+                {"sensor": f"net_{interface}_errors_out", "value": counters.errout, "unit": "errors", "timestamp": timestamp},
+            ])
+    except Exception:
+        pass
+
+    # ========== BATTERY SENSORS (COMPREHENSIVE) ==========
     try:
         if platform.system() == "Linux":
-            # Try reading from Linux power supply
-            battery_path = Path("/sys/class/power_supply/BAT0")
-            if battery_path.exists():
-                capacity_file = battery_path / "capacity"
-                voltage_file = battery_path / "voltage_now"
-                temp_file = battery_path / "temp"
+            for bat_dir in Path("/sys/class/power_supply").glob("BAT*"):
+                bat_name = bat_dir.name.lower()
 
+                # Capacity
+                capacity_file = bat_dir / "capacity"
                 if capacity_file.exists():
-                    capacity = int(capacity_file.read_text().strip())
                     sensors.append({
-                        "sensor": "battery_capacity",
-                        "value": float(capacity),
+                        "sensor": f"{bat_name}_capacity",
+                        "value": float(capacity_file.read_text().strip()),
                         "unit": "percent",
                         "timestamp": timestamp,
                     })
 
+                # Voltage
+                voltage_file = bat_dir / "voltage_now"
                 if voltage_file.exists():
                     voltage_microvolts = int(voltage_file.read_text().strip())
-                    voltage_volts = voltage_microvolts / 1_000_000.0
                     sensors.append({
-                        "sensor": "battery_voltage",
-                        "value": round(voltage_volts, 2),
+                        "sensor": f"{bat_name}_voltage",
+                        "value": round(voltage_microvolts / 1_000_000.0, 2),
                         "unit": "volts",
                         "timestamp": timestamp,
                     })
 
+                # Current
+                current_file = bat_dir / "current_now"
+                if current_file.exists():
+                    current_microamps = int(current_file.read_text().strip())
+                    sensors.append({
+                        "sensor": f"{bat_name}_current",
+                        "value": round(current_microamps / 1_000_000.0, 2),
+                        "unit": "amperes",
+                        "timestamp": timestamp,
+                    })
+
+                # Power
+                power_file = bat_dir / "power_now"
+                if power_file.exists():
+                    power_microwatts = int(power_file.read_text().strip())
+                    sensors.append({
+                        "sensor": f"{bat_name}_power",
+                        "value": round(power_microwatts / 1_000_000.0, 2),
+                        "unit": "watts",
+                        "timestamp": timestamp,
+                    })
+
+                # Temperature
+                temp_file = bat_dir / "temp"
                 if temp_file.exists():
                     temp_decidegrees = int(temp_file.read_text().strip())
-                    temp_celsius = temp_decidegrees / 10.0
                     sensors.append({
-                        "sensor": "battery_temperature",
-                        "value": round(temp_celsius, 2),
+                        "sensor": f"{bat_name}_temperature",
+                        "value": round(temp_decidegrees / 10.0, 2),
                         "unit": "celsius",
                         "timestamp": timestamp,
                     })
+
+                # Status
+                status_file = bat_dir / "status"
+                if status_file.exists():
+                    status = status_file.read_text().strip()
+                    # Convert status to numeric for telemetry (0=Unknown, 1=Charging, 2=Discharging, 3=Full)
+                    status_map = {"Unknown": 0, "Charging": 1, "Discharging": 2, "Full": 3, "Not charging": 4}
+                    sensors.append({
+                        "sensor": f"{bat_name}_status",
+                        "value": status_map.get(status, 0),
+                        "unit": "state",
+                        "timestamp": timestamp,
+                        "description": status,
+                    })
+
+                # Cycle count
+                cycle_file = bat_dir / "cycle_count"
+                if cycle_file.exists():
+                    sensors.append({
+                        "sensor": f"{bat_name}_cycle_count",
+                        "value": int(cycle_file.read_text().strip()),
+                        "unit": "cycles",
+                        "timestamp": timestamp,
+                    })
+
+                # Health/Capacity level
+                health_file = bat_dir / "capacity_level"
+                if health_file.exists():
+                    health = health_file.read_text().strip()
+                    health_map = {"Unknown": 0, "Critical": 1, "Low": 2, "Normal": 3, "High": 4, "Full": 5}
+                    sensors.append({
+                        "sensor": f"{bat_name}_health",
+                        "value": health_map.get(health, 0),
+                        "unit": "state",
+                        "timestamp": timestamp,
+                        "description": health,
+                    })
     except Exception:
-        pass  # Only use real sensor data
+        pass
+
+    # Fallback to psutil battery if sysfs failed
+    try:
+        battery = psutil.sensors_battery()
+        if battery and not any(s["sensor"].startswith("bat") for s in sensors):
+            sensors.extend([
+                {"sensor": "battery_percent", "value": round(battery.percent, 2), "unit": "percent", "timestamp": timestamp},
+                {"sensor": "battery_plugged", "value": 1 if battery.power_plugged else 0, "unit": "boolean", "timestamp": timestamp},
+                {"sensor": "battery_time_left", "value": battery.secsleft if battery.secsleft > 0 else 0, "unit": "seconds", "timestamp": timestamp},
+            ])
+    except Exception:
+        pass
+
+    # ========== SYSTEM SENSORS ==========
+    try:
+        sensors.append({
+            "sensor": "system_uptime",
+            "value": round(psutil.boot_time(), 2),
+            "unit": "unix_timestamp",
+            "timestamp": timestamp,
+        })
+    except Exception:
+        pass
+
+    try:
+        sensors.append({
+            "sensor": "process_count",
+            "value": len(psutil.pids()),
+            "unit": "processes",
+            "timestamp": timestamp,
+        })
+    except Exception:
+        pass
+
+    # Fan speeds (if available)
+    try:
+        fans = psutil.sensors_fans()
+        if fans:
+            for fan_name, fan_list in fans.items():
+                for i, fan in enumerate(fan_list):
+                    sensors.append({
+                        "sensor": f"fan_{fan_name}_{i}_speed",
+                        "value": round(fan.current, 2),
+                        "unit": "RPM",
+                        "timestamp": timestamp,
+                    })
+    except Exception:
+        pass
 
     return sensors
 
