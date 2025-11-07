@@ -1110,11 +1110,22 @@ class TelemetryView(QWidget):
         self._event_card = TelemetryCard("Cached Events")
         self._queue_card = TelemetryCard("Queue Backlog")
 
+        # Store snapshot for detailed view
+        self._current_snapshot: TelemetrySnapshot | None = None
+
+        # Connect card clicks to show details
+        self._sensor_card.clicked.connect(self._show_details)
+        self._event_card.clicked.connect(self._show_details)
+        self._queue_card.clicked.connect(self._show_details)
+
         layout.addWidget(self._sensor_card)
         layout.addWidget(self._event_card)
         layout.addWidget(self._queue_card)
 
     def update_snapshot(self, snapshot: TelemetrySnapshot) -> None:
+        # Store snapshot for detailed view
+        self._current_snapshot = snapshot
+
         self._status_label.setText(
             f"Status: {snapshot.status.upper()} at {snapshot.collected_at}"
         )
@@ -1142,14 +1153,28 @@ class TelemetryView(QWidget):
         self._queue_card.set_lines(queue_lines)
 
     def show_error(self, message: str) -> None:
+        self._current_snapshot = None
         self._status_label.setText(f"Telemetry error: {message}")
         for card in (self._sensor_card, self._event_card, self._queue_card):
             card.set_degraded(True)
             card.set_lines(["No telemetry available"])
 
+    def _show_details(self) -> None:
+        """Show detailed telemetry dialog when a card is clicked."""
+        if self._current_snapshot is None:
+            return
+
+        from .dialogs import SensorDetailsDialog
+        dialog = SensorDetailsDialog(self._current_snapshot, self)
+        dialog.exec()
+
 
 class TelemetryCard(QFrame):
-    """Reusable telemetry card widget."""
+    """Reusable telemetry card widget with click support."""
+
+    # Signal emitted when card is clicked
+    from PySide6.QtCore import Signal
+    clicked = Signal()
 
     def __init__(self, title: str) -> None:
         super().__init__()
@@ -1165,6 +1190,9 @@ class TelemetryCard(QFrame):
         self._content.setWordWrap(True)
         layout.addWidget(self._content)
 
+        # Make clickable
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
     def set_lines(self, lines: Iterable[str]) -> None:
         self._content.setText("\n".join(lines))
 
@@ -1172,6 +1200,12 @@ class TelemetryCard(QFrame):
         self.setProperty("data-state", "degraded" if degraded else "active")
         self.style().unpolish(self)
         self.style().polish(self)
+
+    def mousePressEvent(self, event) -> None:
+        """Handle mouse press to emit clicked signal."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
 
 
 class SettingsView(QWidget):
