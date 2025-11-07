@@ -436,6 +436,10 @@ class TaskQueuePane(QWidget):
 
         layout.addWidget(self._table)
 
+        # Explicitly initialize filters to "All" to ensure all tasks are visible by default
+        self._priority_filter.setCurrentText("All")
+        self._status_filter.setCurrentText("All")
+
     def _connect_signals(self) -> None:
         """Connect UI signals."""
         self._priority_filter.currentTextChanged.connect(self._on_filter_changed)
@@ -572,9 +576,17 @@ class TaskQueuePane(QWidget):
         # Clear preset filters
         self._active_preset_filters = {}
 
+        # Disconnect signals to prevent race condition during reset
+        self._priority_filter.currentTextChanged.disconnect(self._on_filter_changed)
+        self._status_filter.currentTextChanged.disconnect(self._on_filter_changed)
+
         # Reset dropdown filters to "All"
         self._priority_filter.setCurrentText("All")
         self._status_filter.setCurrentText("All")
+
+        # Reconnect signals
+        self._priority_filter.currentTextChanged.connect(self._on_filter_changed)
+        self._status_filter.currentTextChanged.connect(self._on_filter_changed)
 
         # Clear the table filter
         self._table_model.set_filter(None)

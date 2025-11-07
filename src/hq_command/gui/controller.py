@@ -282,6 +282,11 @@ class HQCommandController:
             return tuple(str(role) for role in roles if isinstance(role, str))
         return ()
 
+    def operator_id(self) -> str | None:
+        """Return the operator's ID if provided."""
+        operator_id = self._state.operator.get("id")
+        return str(operator_id) if isinstance(operator_id, str) else None
+
     def operator_active_role(self) -> str | None:
         """Return the operator's preferred active role if provided."""
 
