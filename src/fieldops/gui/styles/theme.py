@@ -95,7 +95,7 @@ def component_styles() -> ComponentStyles:
         letter-spacing: {TYPOGRAPHY['navigation_label'].letter_spacing_em}em;
         min-height: {MIN_CONTROL_HEIGHT_PX}px;
         padding: {SPACING_GRID_PX}px {HORIZONTAL_PADDING_PX}px;
-        opacity: 0.6;
+        opacity: 0.85;
     }}
     QToolButton#NavigationRailButton:checked,
     QToolButton#NavigationRailButton:hover {{
@@ -144,14 +144,15 @@ def component_styles() -> ComponentStyles:
 
     telemetry_card = f"""
     QWidget#TelemetryCard {{
-        background: {surface_dark};
+        background: {primary};
         color: {primary_contrast};
         border-radius: {SPACING_GRID_PX}px;
         padding: {SPACING_GRID_PX * 2}px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        border: 2px solid {primary_light};
     }}
     QWidget#TelemetryCard[data-state="degraded"] {{
         background: {neutral_700};
+        border: 1px solid rgba(255, 255, 255, 0.08);
     }}
     """
 

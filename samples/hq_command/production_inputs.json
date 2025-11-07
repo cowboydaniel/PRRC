@@ -1,6 +1,35 @@
 {
   "tasks": [],
-  "responders": [],
+  "responders": [
+    {
+      "unit_id": "alpha-1",
+      "capabilities": ["medic", "driver", "comms"],
+      "location": "ao-west",
+      "max_concurrent_tasks": 2,
+      "status": "available"
+    },
+    {
+      "unit_id": "bravo-2",
+      "capabilities": ["medic", "engineer"],
+      "location": "ao-east",
+      "max_concurrent_tasks": 1,
+      "status": "available"
+    },
+    {
+      "unit_id": "charlie-5",
+      "capabilities": ["engineer", "driver"],
+      "location": "ao-north",
+      "max_concurrent_tasks": 2,
+      "status": "available"
+    },
+    {
+      "unit_id": "delta-7",
+      "capabilities": ["comms", "logistics"],
+      "location": "hq-base",
+      "max_concurrent_tasks": 3,
+      "status": "available"
+    }
+  ],
   "telemetry": {},
   "operator": {
     "id": "ops-supervisor-01",
