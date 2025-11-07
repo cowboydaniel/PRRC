@@ -284,16 +284,7 @@ def read_system_sensors() -> List[Dict[str, Any]]:
                         })
                         break  # Just read first zone
     except Exception:
-        pass  # Fall through to simulated data
-
-    # If no real CPU temp, simulate
-    if not any(s["sensor"].startswith("cpu_thermal") for s in sensors):
-        sensors.append({
-            "sensor": "cpu_thermal_zone0",
-            "value": round(random.uniform(45.0, 65.0), 2),
-            "unit": "celsius",
-            "timestamp": timestamp,
-        })
+        pass  # Only use real sensor data
 
     # Battery - try to read from actual hardware
     try:
@@ -334,40 +325,7 @@ def read_system_sensors() -> List[Dict[str, Any]]:
                         "timestamp": timestamp,
                     })
     except Exception:
-        pass  # Fall through to simulated data
-
-    # If no real battery data, simulate
-    if not any(s["sensor"] == "battery_capacity" for s in sensors):
-        sensors.extend([
-            {
-                "sensor": "battery_capacity",
-                "value": round(random.uniform(60.0, 95.0), 2),
-                "unit": "percent",
-                "timestamp": timestamp,
-            },
-            {
-                "sensor": "battery_voltage",
-                "value": round(random.uniform(11.1, 12.6), 2),
-                "unit": "volts",
-                "timestamp": timestamp,
-            },
-        ])
-
-    # Ambient temperature - simulated for now (would need external sensor)
-    sensors.append({
-        "sensor": "ambient_temperature",
-        "value": round(random.uniform(18.0, 28.0), 2),
-        "unit": "celsius",
-        "timestamp": timestamp,
-    })
-
-    # Barometric pressure - simulated for now (would need external sensor)
-    sensors.append({
-        "sensor": "barometric_pressure",
-        "value": round(random.uniform(980.0, 1020.0), 2),
-        "unit": "hectopascal",
-        "timestamp": timestamp,
-    })
+        pass  # Only use real sensor data
 
     return sensors
 
@@ -378,43 +336,96 @@ def get_queue_metrics() -> Dict[str, int]:
     Returns:
         Dictionary of queue names to depth counts
     """
-    import random
+    from fieldops.queue_storage import get_queue_storage
 
-    # In production, this would read from the actual offline queue
-    # For now, simulate queue depths
-    return {
-        "telemetry_upload": random.randint(0, 5),
-        "task_sync": random.randint(0, 3),
-        "log_submission": random.randint(0, 8),
-    }
+    storage = get_queue_storage()
+    return storage.get_metrics()
 
 
 def get_cached_system_events() -> List[Dict[str, Any]]:
     """Get recent system events from local event cache.
 
     Returns:
-        List of cached event records
+        List of cached event records with event type, count, and last_seen timestamp
     """
-    from datetime import datetime, timezone, timedelta
-    import random
+    from fieldops.event_cache import get_event_cache
 
-    # In production, this would read from actual system event log
-    # For now, simulate recent events
-    events = []
-    event_types = [
-        "gps_fix_acquired",
-        "network_connected",
-        "mission_loaded",
-        "task_completed",
-        "radio_message_received",
-    ]
+    cache = get_event_cache()
+    return cache.get_event_summary()
 
-    now = datetime.now(timezone.utc)
-    for event_type in random.sample(event_types, k=random.randint(1, 3)):
-        events.append({
-            "event": event_type,
-            "count": random.randint(1, 5),
-            "last_seen": (now - timedelta(minutes=random.randint(1, 30))).isoformat(),
-        })
 
-    return events
+# ------------------------------------------------------------------
+# Queue Management API
+# ------------------------------------------------------------------
+
+def increment_queue(queue_name: str, amount: int = 1) -> None:
+    """Increment a queue depth counter.
+
+    Args:
+        queue_name: Name of queue (telemetry_upload, task_sync, log_submission)
+        amount: Amount to increment by (default 1)
+    """
+    from fieldops.queue_storage import get_queue_storage
+
+    storage = get_queue_storage()
+    storage.increment(queue_name, amount)
+
+
+def decrement_queue(queue_name: str, amount: int = 1) -> None:
+    """Decrement a queue depth counter.
+
+    Args:
+        queue_name: Name of queue (telemetry_upload, task_sync, log_submission)
+        amount: Amount to decrement by (default 1)
+    """
+    from fieldops.queue_storage import get_queue_storage
+
+    storage = get_queue_storage()
+    storage.decrement(queue_name, amount)
+
+
+def set_queue_depth(queue_name: str, depth: int) -> None:
+    """Set a queue depth to a specific value.
+
+    Args:
+        queue_name: Name of queue (telemetry_upload, task_sync, log_submission)
+        depth: New depth value
+    """
+    from fieldops.queue_storage import get_queue_storage
+
+    storage = get_queue_storage()
+    storage.set(queue_name, depth)
+
+
+def reset_all_queues() -> None:
+    """Reset all queue depths to zero."""
+    from fieldops.queue_storage import get_queue_storage
+
+    storage = get_queue_storage()
+    storage.reset()
+
+
+# ------------------------------------------------------------------
+# Event Logging API
+# ------------------------------------------------------------------
+
+def log_system_event(event_type: str, **metadata: Any) -> None:
+    """Log a system event to the event cache.
+
+    Args:
+        event_type: Type of event (e.g., "gps_fix_acquired", "network_connected",
+            "mission_loaded", "task_completed", "radio_message_received")
+        **metadata: Additional metadata to store with the event
+    """
+    from fieldops.event_cache import get_event_cache
+
+    cache = get_event_cache()
+    cache.log_event(event_type, **metadata)
+
+
+def clear_event_cache() -> None:
+    """Clear all cached system events."""
+    from fieldops.event_cache import get_event_cache
+
+    cache = get_event_cache()
+    cache.clear()
