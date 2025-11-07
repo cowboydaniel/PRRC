@@ -336,21 +336,96 @@ def get_queue_metrics() -> Dict[str, int]:
     Returns:
         Dictionary of queue names to depth counts
     """
-    # In production, this would read from the actual offline queue
-    # Return empty queues (no simulation)
-    return {
-        "telemetry_upload": 0,
-        "task_sync": 0,
-        "log_submission": 0,
-    }
+    from fieldops.queue_storage import get_queue_storage
+
+    storage = get_queue_storage()
+    return storage.get_metrics()
 
 
 def get_cached_system_events() -> List[Dict[str, Any]]:
     """Get recent system events from local event cache.
 
     Returns:
-        List of cached event records
+        List of cached event records with event type, count, and last_seen timestamp
     """
-    # In production, this would read from actual system event log
-    # Return empty list (no simulation)
-    return []
+    from fieldops.event_cache import get_event_cache
+
+    cache = get_event_cache()
+    return cache.get_event_summary()
+
+
+# ------------------------------------------------------------------
+# Queue Management API
+# ------------------------------------------------------------------
+
+def increment_queue(queue_name: str, amount: int = 1) -> None:
+    """Increment a queue depth counter.
+
+    Args:
+        queue_name: Name of queue (telemetry_upload, task_sync, log_submission)
+        amount: Amount to increment by (default 1)
+    """
+    from fieldops.queue_storage import get_queue_storage
+
+    storage = get_queue_storage()
+    storage.increment(queue_name, amount)
+
+
+def decrement_queue(queue_name: str, amount: int = 1) -> None:
+    """Decrement a queue depth counter.
+
+    Args:
+        queue_name: Name of queue (telemetry_upload, task_sync, log_submission)
+        amount: Amount to decrement by (default 1)
+    """
+    from fieldops.queue_storage import get_queue_storage
+
+    storage = get_queue_storage()
+    storage.decrement(queue_name, amount)
+
+
+def set_queue_depth(queue_name: str, depth: int) -> None:
+    """Set a queue depth to a specific value.
+
+    Args:
+        queue_name: Name of queue (telemetry_upload, task_sync, log_submission)
+        depth: New depth value
+    """
+    from fieldops.queue_storage import get_queue_storage
+
+    storage = get_queue_storage()
+    storage.set(queue_name, depth)
+
+
+def reset_all_queues() -> None:
+    """Reset all queue depths to zero."""
+    from fieldops.queue_storage import get_queue_storage
+
+    storage = get_queue_storage()
+    storage.reset()
+
+
+# ------------------------------------------------------------------
+# Event Logging API
+# ------------------------------------------------------------------
+
+def log_system_event(event_type: str, **metadata: Any) -> None:
+    """Log a system event to the event cache.
+
+    Args:
+        event_type: Type of event (e.g., "gps_fix_acquired", "network_connected",
+            "mission_loaded", "task_completed", "radio_message_received")
+        **metadata: Additional metadata to store with the event
+    """
+    from fieldops.event_cache import get_event_cache
+
+    cache = get_event_cache()
+    cache.log_event(event_type, **metadata)
+
+
+def clear_event_cache() -> None:
+    """Clear all cached system events."""
+    from fieldops.event_cache import get_event_cache
+
+    cache = get_event_cache()
+    cache.clear()
