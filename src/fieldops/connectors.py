@@ -1,9 +1,19 @@
-"""FieldOps telemetry connectors.
+"""FieldOps telemetry connectors (OPTIONAL - NOT CURRENTLY USED).
 
-This module defines minimal HTTP clients that communicate with the
-production FieldOps telemetry services. The clients are intentionally
-lightweight so they can run on constrained rugged devices while still
-surfacing actionable errors when configuration or network steps fail.
+NOTE: This module is preserved for potential future use but is NOT currently
+used by the telemetry system. The application is designed as offline-first
+and collects telemetry from LOCAL hardware sensors on Dell Rugged Extreme
+tablets (see hardware.py).
+
+This module defines minimal HTTP clients that could communicate with external
+FieldOps telemetry services if such integration were needed in the future.
+The clients are intentionally lightweight so they can run on constrained
+rugged devices while still surfacing actionable errors when configuration
+or network steps fail.
+
+For actual telemetry collection, see:
+- fieldops/telemetry.py - Main telemetry collection module (uses local hardware)
+- fieldops/hardware.py - Hardware sensor reading functions
 """
 from __future__ import annotations
 

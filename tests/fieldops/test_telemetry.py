@@ -6,89 +6,46 @@ from datetime import datetime, timezone
 import pytest
 
 from fieldops import telemetry
-from fieldops.connectors import FieldOpsTelemetryConfig
 
 
 @pytest.fixture
 def telemetry_connector_stubs(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
-    """Patch telemetry module to use deterministic connector stubs."""
+    """Patch telemetry module to use deterministic hardware stubs."""
 
-    config = FieldOpsTelemetryConfig(
-        api_base_url="https://fieldops.test",
-        api_token="test-token",
-        sensor_device_id="device-001",
-        event_cache_id="cache-001",
-        queue_group="uplink-queue",
-        timeout_seconds=1.0,
-    )
+    # Stub data for hardware sensors
+    sensor_data = [
+        {
+            "sensor": "temperature_probe",
+            "value": 72.4,
+            "unit": "fahrenheit",
+            "timestamp": "2024-01-01T12:00:00+00:00",
+        }
+    ]
 
-    monkeypatch.setattr(telemetry, "_get_telemetry_config", lambda: config)
+    # Stub data for system events
+    event_data = [
+        {
+            "event": "motion_detected",
+            "count": 3,
+            "last_seen": "2024-01-01T11:58:00+00:00",
+        }
+    ]
 
-    class SensorClientStub:
-        def __init__(self) -> None:
-            self.payload = [
-                {
-                    "sensor": "temperature_probe",
-                    "value": 72.4,
-                    "unit": "fahrenheit",
-                    "timestamp": "2024-01-01T12:00:00+00:00",
-                }
-            ]
+    # Stub data for queue metrics
+    queue_data = {
+        "uplink": 4,
+        "alerts": 1,
+    }
 
-        def fetch_latest_readings(self, device_id: str):  # pragma: no cover - type narrow
-            assert device_id == config.sensor_device_id
-            return list(self.payload)
-
-    class EventClientStub:
-        def __init__(self) -> None:
-            self.payload = [
-                {
-                    "event": "motion_detected",
-                    "count": 3,
-                    "last_seen": "2024-01-01T11:58:00+00:00",
-                }
-            ]
-
-        def fetch_cached_events(self, cache_id: str):  # pragma: no cover - type narrow
-            assert cache_id == config.event_cache_id
-            return list(self.payload)
-
-    class QueueClientStub:
-        def __init__(self) -> None:
-            self.payload = {
-                "uplink": 4,
-                "alerts": 1,
-            }
-
-        def fetch_queue_depths(self, queue_group: str):  # pragma: no cover - type narrow
-            assert queue_group == config.queue_group
-            return dict(self.payload)
-
-    sensor_stub = SensorClientStub()
-    event_stub = EventClientStub()
-    queue_stub = QueueClientStub()
-
-    monkeypatch.setattr(
-        telemetry,
-        "FieldOpsSensorClient",
-        lambda *args, **kwargs: sensor_stub,
-    )
-    monkeypatch.setattr(
-        telemetry,
-        "FieldOpsEventClient",
-        lambda *args, **kwargs: event_stub,
-    )
-    monkeypatch.setattr(
-        telemetry,
-        "FieldOpsQueueClient",
-        lambda *args, **kwargs: queue_stub,
-    )
+    # Patch hardware functions with deterministic data
+    monkeypatch.setattr(telemetry, "read_system_sensors", lambda: sensor_data)
+    monkeypatch.setattr(telemetry, "get_cached_system_events", lambda: event_data)
+    monkeypatch.setattr(telemetry, "get_queue_metrics", lambda: queue_data)
 
     return {
-        "config": config,
-        "sensor_stub": sensor_stub,
-        "event_stub": event_stub,
-        "queue_stub": queue_stub,
+        "sensor_data": sensor_data,
+        "event_data": event_data,
+        "queue_data": queue_data,
     }
 
 
@@ -127,12 +84,11 @@ def test_collect_telemetry_snapshot_structure(telemetry_connector_stubs):
         assert value >= 0
 
 
-def test_collect_telemetry_normalizes_units(telemetry_connector_stubs):
+def test_collect_telemetry_normalizes_units(telemetry_connector_stubs, monkeypatch):
     """Unit conversion and timestamp parsing occurs for injected telemetry."""
 
-    stubs = telemetry_connector_stubs
-
-    stubs["sensor_stub"].payload = [
+    # Override hardware stubs with specific test data
+    sensor_data = [
         {
             "sensor": "temp",  # Fahrenheit to Celsius conversion
             "value": 86,
@@ -147,7 +103,7 @@ def test_collect_telemetry_normalizes_units(telemetry_connector_stubs):
         },
     ]
 
-    stubs["event_stub"].payload = [
+    event_data = [
         {
             "event": "heartbeat",
             "count": 2,
@@ -155,7 +111,11 @@ def test_collect_telemetry_normalizes_units(telemetry_connector_stubs):
         }
     ]
 
-    stubs["queue_stub"].payload = {"uplink": 1, "alerts": 0}
+    queue_data = {"uplink": 1, "alerts": 0}
+
+    monkeypatch.setattr(telemetry, "read_system_sensors", lambda: sensor_data)
+    monkeypatch.setattr(telemetry, "get_cached_system_events", lambda: event_data)
+    monkeypatch.setattr(telemetry, "get_queue_metrics", lambda: queue_data)
 
     snapshot = telemetry.collect_telemetry_snapshot()
 
@@ -174,19 +134,22 @@ def test_collect_telemetry_normalizes_units(telemetry_connector_stubs):
     assert queues.total_backlog == 1
 
 
-def test_collect_telemetry_handles_degraded_paths(telemetry_connector_stubs):
+def test_collect_telemetry_handles_degraded_paths(telemetry_connector_stubs, monkeypatch):
     """Edge-case telemetry inputs degrade status and emit operator notes."""
 
-    stubs = telemetry_connector_stubs
+    # Override hardware stubs with edge-case data
+    # Sensor hardware outage - no data
+    sensor_data = []
 
-    # Sensor API outage
-    stubs["sensor_stub"].payload = []
+    # Cached events missing - no data
+    event_data = []
 
-    # Cached events missing
-    stubs["event_stub"].payload = []
+    # Queue depths with invalid types and negative values
+    queue_data = {"alerts": "invalid", "uplink": "15", "ingest": -4}
 
-    # Queue depths returned with invalid types and negative values
-    stubs["queue_stub"].payload = {"alerts": "invalid", "uplink": "15", "ingest": -4}
+    monkeypatch.setattr(telemetry, "read_system_sensors", lambda: sensor_data)
+    monkeypatch.setattr(telemetry, "get_cached_system_events", lambda: event_data)
+    monkeypatch.setattr(telemetry, "get_queue_metrics", lambda: queue_data)
 
     snapshot = telemetry.collect_telemetry_snapshot()
 
